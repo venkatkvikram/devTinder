@@ -226,3 +226,9 @@ app.listen(3000);
 - **"Cannot set headers after they are sent to the client"**: You tried to send multiple responses
 - **"Cannot read property of undefined"**: You forgot to call `next()` and the expected data wasn't passed
 - **Request hangs/times out**: You forgot to call `next()` or send a response
+============
+
+1. First Connect to Database then listen to server
+
+
+Document (entry) => Collection (table user) => Database (devTinder)

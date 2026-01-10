@@ -1,31 +1,37 @@
 const express = require("express")
-
-
+const connectDB = require("./config/database")
 const app = express();
+const User = require("./model/user")
 
-
-const {adminAuth, userAuth} = require("./middlewares/auth");
-
-app.use("/admin", adminAuth); //applies to all HTTP methods starting with /admin
-
-
-
-app.post("/user/login", (req,res) => {
-    res.send("Success Login!")
-})
-
-app.get("/user", userAuth, (req,res) => {
-    res.send("User Home Page")
-})
-
-
-app.listen(3000, () => {
-    console.log("Listening on 3000...")
-})
-
-app.use("/", (err, req,res,next) => {
-    if(err) {
-        res.status(500).send("Something went wrong!");
+app.post("/signup", async (req, res) => {
+    const userObj = {
+        firstName: "Ram",
+        lastName: "Kambham",
+        emailId: "ram.kam@gmail.com",
+        password: "ram123"
+    }
+    //creating a new instance of UserModel
+    const user = new User(userObj);
+    try {
+        await user.save(); //returns a promise 
+        res.send("User Added successfully");
+    } catch (error) {
+        res.status(400).send("Error Saving the user" + err.message)
     }
 })
-//write at end of application. Just in case anything breaks it will be shown here.
+
+
+connectDB()
+    .then(() => {
+        console.log("Database connection established!");
+        app.listen(8888, () => {
+            console.log("Server is successfully running in port 8888");
+        })
+    })
+    .catch(err => console.error("Error connecting database"));
+
+
+//start your server only after you connect to database
+
+
+
