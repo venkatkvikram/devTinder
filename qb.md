@@ -1,0 +1,5 @@
+-Middleware
+-Express JS handles requests behind the scenes
+-Diff bw app.use() and app.all()
+-Write dummy auth middleware for admin
+-Write dumy auth middleware for all user routes, except "/user/login"

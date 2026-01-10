@@ -4,18 +4,17 @@ const express = require("express")
 const app = express();
 
 
-// `app.use((req, res) => {
-//     res.send("Helo")
-// })`
+const {adminAuth, userAuth} = require("./middlewares/auth");
 
-app.use("/user", (req, res, next) => {
-    res.send("Response 1!")
-    next(); //goes to second route handler
-},
-    (req, res) => {
-        res.send("Response 2 after Response 1"); //code will throw an error when you try to send another response in the same URL route/request
-    }
-)
+app.use("/admin", adminAuth); //applies to all HTTP methods starting with /admin
+
+app.post("/user/login", (req,res) => {
+    res.send("Success Login!")
+})
+
+app.get("/user", userAuth, (req,res) => {
+    res.send("User Home Page")
+})
 
 
 app.listen(3000, () => {
