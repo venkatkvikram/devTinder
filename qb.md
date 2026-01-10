@@ -3,3 +3,4 @@
 -Diff bw app.use() and app.all()
 -Write dummy auth middleware for admin
 -Write dumy auth middleware for all user routes, except "/user/login"
+-Error handling use app.use("/", (err,req,res,next) => {})

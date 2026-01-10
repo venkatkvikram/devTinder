@@ -8,6 +8,12 @@ const {adminAuth, userAuth} = require("./middlewares/auth");
 
 app.use("/admin", adminAuth); //applies to all HTTP methods starting with /admin
 
+app.use("/", (err, req,res,next) => {
+    if(err) {
+        res.status(500).send("Something went wrong!");
+    }
+})
+
 app.post("/user/login", (req,res) => {
     res.send("Success Login!")
 })
