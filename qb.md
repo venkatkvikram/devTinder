@@ -16,3 +16,4 @@
 
 - Add express.json middleware to app
 - Make signup API dynamic to receive data from user input
+- User.findOne with duplicate fields which object gets returned?
