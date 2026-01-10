@@ -1,15 +1,18 @@
--Middleware
--Express JS handles requests behind the scenes
--Diff bw app.use() and app.all()
--Write dummy auth middleware for admin
--Write dumy auth middleware for all user routes, except "/user/login"
--Error handling use app.use("/", (err,req,res,next) => {})
+- Middleware
+- Express JS handles requests behind the scenes
+- Diff bw app.use() and app.all()
+- Write dummy auth middleware for admin
+- Write dumy auth middleware for all user routes, except "/user/login"
+- Error handling use app.use("/", (err,req,res,next) => {})
 
--Create a cluster on MongoDB website (Mongo Atlas)
--Intall Mongoose library
--Connect Application to database <"Connection-url"/devTinder>
--Call the connectDB function and connect to database before starting application on 8888
--Create  userSchema and userModel 
--Create POST /signup API call
--Push some documents using API calls from postman
--Error Handling using try,catch
+- Create a cluster on MongoDB website (Mongo Atlas)
+- Intall Mongoose library
+- Connect Application to database <"Connection- url"/devTinder>
+- Call the connectDB function and connect to database before starting application on 8888
+- Create  userSchema and userModel 
+- Create POST /signup API call
+- Push some documents using API calls from postman
+- Error Handling using try,catch
+
+- Add express.json middleware to app
+- Make signup API dynamic to receive data from user input
