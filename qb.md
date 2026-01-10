@@ -17,3 +17,7 @@
 - Add express.json middleware to app
 - Make signup API dynamic to receive data from user input
 - User.findOne with duplicate fields which object gets returned?
+- Diff bw patch and PUT
+- API to update and delete the user
+- Explore mongoose documentation for Model action methods
+- What are options in Model.findOneAndUpdate method
