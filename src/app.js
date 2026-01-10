@@ -8,11 +8,7 @@ const {adminAuth, userAuth} = require("./middlewares/auth");
 
 app.use("/admin", adminAuth); //applies to all HTTP methods starting with /admin
 
-app.use("/", (err, req,res,next) => {
-    if(err) {
-        res.status(500).send("Something went wrong!");
-    }
-})
+
 
 app.post("/user/login", (req,res) => {
     res.send("Success Login!")
@@ -26,3 +22,10 @@ app.get("/user", userAuth, (req,res) => {
 app.listen(3000, () => {
     console.log("Listening on 3000...")
 })
+
+app.use("/", (err, req,res,next) => {
+    if(err) {
+        res.status(500).send("Something went wrong!");
+    }
+})
+//write at end of application. Just in case anything breaks it will be shown here.
