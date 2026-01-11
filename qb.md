@@ -21,9 +21,14 @@
 - API to update and delete the user
 - Explore mongoose documentation for Model action methods
 - What are options in Model.findOneAndUpdate method
+# DATA SANITIZATION
 
+## Schema Level validations
 - Explre schemaType options from documentation
 - add required,unique,defaultvalue, lowercase, min, minlength,max,maxlength
 - Create custom validate function for gender
 - Add timestamps to user schema
 - Improve DB schema but putting all appropriate validations on each field of schema
+## API level validations 
+- Add API Level validation on Patch request & signup post API
+- Data sanitization - Add API validation for each field
