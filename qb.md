@@ -32,3 +32,5 @@
 ## API level validations 
 - Add API Level validation on Patch request & signup post API
 - Data sanitization - Add API validation for each field
+- Install validator
+- Explore validator library functions and use valdiator fucntions for password, url and emil
