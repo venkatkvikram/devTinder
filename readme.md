@@ -1192,3 +1192,10 @@ try {
 Document (entry) => Collection (table user) => Database (devTinder)
 
 </details>
+
+<details>
+<strong><summary>Data Sanitization & Schema Validations</summary><strong>
+if we specify required true and if we dont send that field, then mongoose will not allow insertion into that data base
+
+unique -> text [Avoids duplicate records]
+</details>
