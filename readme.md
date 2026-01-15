@@ -1199,3 +1199,765 @@ if we specify required true and if we dont send that field, then mongoose will n
 
 unique -> text [Avoids duplicate records]
 </details>
+
+
+
+## Password Encryption with bcrypt in Node.js
+
+<details>
+<summary><strong>📖 Password Encryption with bcrypt in Node.js</strong></summary>
+
+<details>
+<summary><strong>Table of Contents</strong></summary>
+
+- [Why Encrypt Passwords?](#why-encrypt-passwords)
+- [What is bcrypt?](#what-is-bcrypt)
+- [Installation](#installation)
+- [How bcrypt Works](#how-bcrypt-works)
+- [Hashing Passwords](#hashing-passwords)
+- [Comparing Passwords](#comparing-passwords)
+- [Complete Authentication Example](#complete-authentication-example)
+- [Best Practices](#best-practices)
+- [Common Mistakes](#common-mistakes)
+- [Security Checklist](#security-checklist)
+- [bcrypt Methods Reference](#bcrypt-methods-reference)
+- [Testing Password Hashing](#testing-password-hashing)
+- [Additional Resources](#additional-resources)
+
+</details>
+
+---
+
+<details>
+<summary><strong>Why Encrypt Passwords?</strong></summary>
+
+**NEVER store plain text passwords in your database!**
+
+### Problems with Plain Text Passwords:
+- ❌ Database administrators can see passwords
+- ❌ If database is compromised, all passwords are exposed
+- ❌ Users often reuse passwords across multiple sites
+- ❌ Legal and compliance issues (GDPR, etc.)
+
+### Solution: Password Hashing
+- ✅ Passwords are converted to irreversible hash strings
+- ✅ Even if database is compromised, original passwords are safe
+- ✅ No one (including admins) can see actual passwords
+- ✅ Industry standard security practice
+
+</details>
+
+---
+
+<details>
+<summary><strong>What is bcrypt?</strong></summary>
+
+**bcrypt** is a password hashing function designed specifically for securely storing passwords.
+
+### Key Features:
+- **One-way hashing**: Cannot be decrypted back to original password
+- **Salt generation**: Adds random data to prevent rainbow table attacks
+- **Configurable cost factor**: Can adjust computational difficulty
+- **Slow by design**: Makes brute-force attacks impractical
+
+</details>
+
+---
+
+<details>
+<summary><strong>Installation</strong></summary>
+```bash
+npm install bcrypt
+```
+
+For validation (optional but recommended):
+```bash
+npm install validator
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>How bcrypt Works</strong></summary>
+
+### The Hashing Process
+```
+Plain Password + Salt + Rounds = Hash
+```
+
+1. **Salt**: A random string added to the password
+2. **Rounds**: Number of times the hashing algorithm is applied (default: 10)
+3. **Hash**: The final encrypted password stored in database
+
+### Example:
+```javascript
+Plain Password: "myPassword123"
+Salt: "$2b$10$N9qo8uLOickgx2ZMRZoMye"
+Rounds: 10
+Hash: "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+```
+
+### Understanding Salt Rounds
+
+| Rounds | Time to Hash | Security Level |
+|--------|--------------|----------------|
+| 8 | ~40ms | Minimum acceptable |
+| 10 | ~100ms | **Recommended** |
+| 12 | ~400ms | High security |
+| 14 | ~1.6s | Very high security |
+
+**Recommendation**: Use 10 rounds for most applications. Higher rounds = more secure but slower.
+
+</details>
+
+---
+
+<details>
+<summary><strong>Hashing Passwords</strong></summary>
+
+### Method 1: Using `bcrypt.hash()` (Recommended)
+```javascript
+const bcrypt = require("bcrypt");
+
+// Hash a password
+const saltRounds = 10;
+const plainPassword = "myPassword123";
+
+const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
+console.log(hashedPassword);
+// Output: $2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+```
+
+### Method 2: Manual Salt Generation (Less Common)
+```javascript
+const bcrypt = require("bcrypt");
+
+// Generate salt first, then hash
+const salt = await bcrypt.genSalt(10);
+const hashedPassword = await bcrypt.hash(plainPassword, salt);
+```
+
+### During User Signup
+```javascript
+const bcrypt = require("bcrypt");
+const User = require("./models/user");
+
+app.post("/signup", async (req, res) => {
+    try {
+        const { firstName, lastName, emailId, password } = req.body;
+        
+        // Hash the password before saving
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Create user with hashed password
+        const user = new User({
+            firstName,
+            lastName,
+            emailId,
+            password: hashedPassword  // Store hashed password
+        });
+        
+        await user.save();
+        res.status(201).send("User created successfully!");
+        
+    } catch (error) {
+        res.status(400).send("Error: " + error.message);
+    }
+});
+```
+
+### Using Mongoose Schema Middleware (Advanced)
+```javascript
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+const userSchema = new mongoose.Schema({
+    emailId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    }
+});
+
+// Hash password before saving
+userSchema.pre("save", async function(next) {
+    // Only hash if password is modified or new
+    if (!this.isModified("password")) {
+        return next();
+    }
+    
+    try {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Comparing Passwords</strong></summary>
+
+### How Password Verification Works
+
+You **CANNOT** decrypt a hashed password. Instead, you:
+1. Take the plain password from login attempt
+2. Hash it using the same algorithm and salt
+3. Compare the two hashes
+
+### Using `bcrypt.compare()`
+```javascript
+const bcrypt = require("bcrypt");
+
+const plainPassword = "myPassword123";
+const hashedPassword = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+// Returns true if passwords match, false otherwise
+const isMatch = await bcrypt.compare(plainPassword, hashedPassword);
+
+if (isMatch) {
+    console.log("Password is correct!");
+} else {
+    console.log("Password is incorrect!");
+}
+```
+
+### During User Login
+```javascript
+const bcrypt = require("bcrypt");
+const User = require("./models/user");
+
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        // Find user by email
+        const user = await User.findOne({ emailId: emailId });
+        
+        if (!user) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        // Compare plain password with hashed password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        
+        if (isPasswordValid) {
+            res.status(200).send("Login successful!");
+        } else {
+            throw new Error("Invalid credentials!");
+        }
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Complete Authentication Example</strong></summary>
+
+### User Model with Validation
+```javascript
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+const validator = require("validator");
+
+const userSchema = new mongoose.Schema({
+    firstName: {
+        type: String,
+        required: true,
+        trim: true,
+        minLength: 2,
+        maxLength: 50
+    },
+    lastName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    emailId: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
+        validate: {
+            validator: validator.isEmail,
+            message: "Invalid email format"
+        }
+    },
+    password: {
+        type: String,
+        required: true,
+        minLength: 6
+    },
+    age: {
+        type: Number,
+        min: 18
+    }
+}, {
+    timestamps: true
+});
+
+// Hash password before saving
+userSchema.pre("save", async function(next) {
+    if (!this.isModified("password")) {
+        return next();
+    }
+    
+    try {
+        this.password = await bcrypt.hash(this.password, 10);
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Method to compare passwords
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+};
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
+```
+
+### Signup Route
+```javascript
+const express = require("express");
+const User = require("./models/user");
+const validator = require("validator");
+
+const app = express();
+app.use(express.json());
+
+app.post("/signup", async (req, res) => {
+    try {
+        const { firstName, lastName, emailId, password, age } = req.body;
+        
+        // Validate email
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid email format!");
+        }
+        
+        // Validate password strength
+        if (!validator.isStrongPassword(password, {
+            minLength: 8,
+            minLowercase: 1,
+            minUppercase: 1,
+            minNumbers: 1,
+            minSymbols: 1
+        })) {
+            throw new Error("Password must be at least 8 characters with uppercase, lowercase, number and symbol!");
+        }
+        
+        // Check if user already exists
+        const existingUser = await User.findOne({ emailId });
+        if (existingUser) {
+            throw new Error("Email already registered!");
+        }
+        
+        // Create new user (password will be hashed automatically)
+        const user = new User({
+            firstName,
+            lastName,
+            emailId,
+            password,
+            age
+        });
+        
+        await user.save();
+        
+        res.status(201).json({
+            message: "User created successfully!",
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                emailId: user.emailId
+            }
+        });
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+```
+
+### Login Route
+```javascript
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        // Validate email format
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        // Find user by email
+        const user = await User.findOne({ emailId: emailId });
+        
+        if (!user) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        // Compare passwords
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        // OR using the schema method:
+        // const isPasswordValid = await user.comparePassword(password);
+        
+        if (!isPasswordValid) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        // Login successful
+        res.status(200).json({
+            message: "Login successful!",
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                emailId: user.emailId
+            }
+        });
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+```
+
+### Password Reset Route
+```javascript
+app.patch("/reset-password", async (req, res) => {
+    try {
+        const { emailId, oldPassword, newPassword } = req.body;
+        
+        // Find user
+        const user = await User.findOne({ emailId });
+        if (!user) {
+            throw new Error("User not found!");
+        }
+        
+        // Verify old password
+        const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isOldPasswordValid) {
+            throw new Error("Current password is incorrect!");
+        }
+        
+        // Validate new password
+        if (!validator.isStrongPassword(newPassword)) {
+            throw new Error("New password is not strong enough!");
+        }
+        
+        // Update password (will be hashed automatically by pre-save hook)
+        user.password = newPassword;
+        await user.save();
+        
+        res.status(200).send("Password updated successfully!");
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Best Practices</strong></summary>
+
+### 1. Always Hash Passwords
+```javascript
+// ❌ NEVER do this
+const user = new User({
+    emailId: "test@example.com",
+    password: "plainPassword123"  // Plain text password
+});
+
+// ✅ Always do this
+const hashedPassword = await bcrypt.hash("plainPassword123", 10);
+const user = new User({
+    emailId: "test@example.com",
+    password: hashedPassword  // Hashed password
+});
+```
+
+### 2. Use Appropriate Salt Rounds
+```javascript
+// ❌ Too low (insecure)
+const hash = await bcrypt.hash(password, 5);
+
+// ✅ Recommended for most applications
+const hash = await bcrypt.hash(password, 10);
+
+// ✅ For high-security applications
+const hash = await bcrypt.hash(password, 12);
+```
+
+### 3. Never Reveal Why Login Failed
+```javascript
+// ❌ Bad - reveals which part failed
+if (!user) {
+    throw new Error("User not found!");
+}
+if (!isPasswordValid) {
+    throw new Error("Password is incorrect!");
+}
+
+// ✅ Good - generic error message
+if (!user || !isPasswordValid) {
+    throw new Error("Invalid credentials!");
+}
+```
+
+### 4. Validate Password Strength
+```javascript
+const validator = require("validator");
+
+if (!validator.isStrongPassword(password, {
+    minLength: 8,
+    minLowercase: 1,
+    minUppercase: 1,
+    minNumbers: 1,
+    minSymbols: 1
+})) {
+    throw new Error("Password must be stronger!");
+}
+```
+
+### 5. Don't Return Password in API Responses
+```javascript
+// ❌ Bad
+res.json(user);  // Includes hashed password
+
+// ✅ Good - exclude password
+const userSchema = new mongoose.Schema({
+    password: {
+        type: String,
+        required: true,
+        select: false  // Won't be returned by default
+    }
+});
+
+// Or manually exclude
+res.json({
+    id: user._id,
+    emailId: user.emailId,
+    firstName: user.firstName
+    // No password field
+});
+```
+
+### 6. Use Environment Variables for Salt Rounds
+```javascript
+// .env file
+SALT_ROUNDS=10
+
+// In your code
+const bcrypt = require("bcrypt");
+require('dotenv').config();
+
+const saltRounds = parseInt(process.env.SALT_ROUNDS) || 10;
+const hash = await bcrypt.hash(password, saltRounds);
+```
+
+### 7. Handle Async Operations Properly
+```javascript
+// ❌ Wrong - not awaiting async function
+const hash = bcrypt.hash(password, 10);  // Returns a Promise
+
+// ✅ Correct
+const hash = await bcrypt.hash(password, 10);
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Common Mistakes</strong></summary>
+
+### Mistake 1: Comparing Plain Text Passwords
+```javascript
+// ❌ NEVER do this
+if (password === user.password) {
+    console.log("Logged in");
+}
+
+// ✅ Always use bcrypt.compare()
+const isValid = await bcrypt.compare(password, user.password);
+if (isValid) {
+    console.log("Logged in");
+}
+```
+
+### Mistake 2: Hashing Already Hashed Passwords
+```javascript
+// ❌ Wrong - hashing twice
+userSchema.pre("save", async function(next) {
+    // This will hash the password every time, even if already hashed
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});
+
+// ✅ Correct - only hash if modified
+userSchema.pre("save", async function(next) {
+    if (!this.isModified("password")) {
+        return next();
+    }
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});
+```
+
+### Mistake 3: Not Using Try-Catch
+```javascript
+// ❌ Wrong - no error handling
+app.post("/login", async (req, res) => {
+    const isValid = await bcrypt.compare(password, user.password);
+    res.send("Success");
+});
+
+// ✅ Correct
+app.post("/login", async (req, res) => {
+    try {
+        const isValid = await bcrypt.compare(password, user.password);
+        res.send("Success");
+    } catch (error) {
+        res.status(500).send("Error: " + error.message);
+    }
+});
+```
+
+### Mistake 4: Synchronous bcrypt Methods in Production
+```javascript
+// ❌ Avoid in production - blocks event loop
+const hash = bcrypt.hashSync(password, 10);
+const isValid = bcrypt.compareSync(password, hash);
+
+// ✅ Use async methods
+const hash = await bcrypt.hash(password, 10);
+const isValid = await bcrypt.compare(password, hash);
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Security Checklist</strong></summary>
+
+- ✅ Never store plain text passwords
+- ✅ Use bcrypt with at least 10 salt rounds
+- ✅ Validate password strength before hashing
+- ✅ Use generic error messages for failed logins
+- ✅ Don't return passwords in API responses
+- ✅ Implement rate limiting on login endpoints
+- ✅ Use HTTPS in production
+- ✅ Implement account lockout after multiple failed attempts
+- ✅ Add password reset functionality
+- ✅ Log authentication attempts for security monitoring
+
+</details>
+
+---
+
+<details>
+<summary><strong>bcrypt Methods Reference</strong></summary>
+
+### Hashing
+
+| Method | Description | Usage |
+|--------|-------------|-------|
+| `bcrypt.hash(password, saltRounds)` | Hash password (async) | `await bcrypt.hash(pwd, 10)` |
+| `bcrypt.hashSync(password, saltRounds)` | Hash password (sync) | `bcrypt.hashSync(pwd, 10)` |
+| `bcrypt.genSalt(saltRounds)` | Generate salt (async) | `await bcrypt.genSalt(10)` |
+| `bcrypt.genSaltSync(saltRounds)` | Generate salt (sync) | `bcrypt.genSaltSync(10)` |
+
+### Comparing
+
+| Method | Description | Usage |
+|--------|-------------|-------|
+| `bcrypt.compare(password, hash)` | Compare password (async) | `await bcrypt.compare(pwd, hash)` |
+| `bcrypt.compareSync(password, hash)` | Compare password (sync) | `bcrypt.compareSync(pwd, hash)` |
+
+</details>
+
+---
+
+<details>
+<summary><strong>Testing Password Hashing</strong></summary>
+```javascript
+const bcrypt = require("bcrypt");
+
+// Test hashing and comparing
+async function testBcrypt() {
+    const password = "myPassword123";
+    
+    // Hash the password
+    const hash = await bcrypt.hash(password, 10);
+    console.log("Original:", password);
+    console.log("Hashed:", hash);
+    
+    // Compare correct password
+    const isMatch1 = await bcrypt.compare(password, hash);
+    console.log("Correct password:", isMatch1);  // true
+    
+    // Compare wrong password
+    const isMatch2 = await bcrypt.compare("wrongPassword", hash);
+    console.log("Wrong password:", isMatch2);  // false
+}
+
+testBcrypt();
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Additional Resources</strong></summary>
+
+- [bcrypt npm package](https://www.npmjs.com/package/bcrypt)
+- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+- [validator npm package](https://www.npmjs.com/package/validator)
+- [Mongoose Middleware Documentation](https://mongoosejs.com/docs/middleware.html)
+
+</details>
+
+---
+
+## Summary
+
+- **Never** store passwords in plain text
+- Use **bcrypt** to hash passwords before storing
+- Use **bcrypt.compare()** to verify passwords during login
+- Recommended salt rounds: **10** for most applications
+- Always use **async** methods (avoid Sync methods in production)
+- Validate password strength before hashing
+- Use generic error messages to prevent user enumeration
+- Implement additional security measures (rate limiting, account lockout, etc.)
+
+</details>
