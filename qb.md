@@ -35,3 +35,17 @@
 - Install validator
 - Explore validator library functions and use valdiator fucntions for password, url and emil
 - NEVER trust req.body
+
+
+- validate data in signup API
+- Install bcrypt package
+- Create passwordhash with bcrypt.hash
+- Create login API
+- Compare passwords and throw erros if email or password is invalid
+
+- Install cookie parser
+- Send a dummy token to user
+- create GET /profile API and check if you get the cookie back
+- Intall jsonwebtoken
+- In login API, after email and password verification, create a JWT token and send it to user in cookies
+- Read cookies inside profile API and find the logged in user

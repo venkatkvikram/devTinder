@@ -40,6 +40,10 @@ app.post("/login", async (req, res) => {
         }
         const isPasswordValid = await bcrypt.compare(password, user.password)
         if (isPasswordValid) {
+
+            //Create a JWT token
+            
+            //Add the token to cookie and send the response back to user
             res.status(200).send("Login Successful!")
         } else {
             throw new Error("Invalid Credentials!")
