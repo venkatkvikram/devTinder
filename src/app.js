@@ -42,11 +42,9 @@ app.post("/login", async (req, res) => {
         if (!user) {
             throw new Error("User not present")
         }
-        const isPasswordValid = await bcrypt.compare(password, user.password)
+        const isPasswordValid = await user.validatePassword(password)
         if (isPasswordValid) {
-            //Create a JWT token
-            // const token = await jwt.sign({ _id: user._id })
-            const token = await jwt.sign({ _id: user._id }, "VIKRAM@^*@#", {expiresIn: '1d'});
+            const token = await user.getJWT();
             res.cookie("token", token)
             //Add the token to cookie and send the response back to user
             res.status(200).send("Login Successful!")

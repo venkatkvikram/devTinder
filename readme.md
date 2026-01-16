@@ -2005,6 +2005,12 @@ Login Flow
 -> Cookie is sent back in the response
 
 jwt.sign, jwt.verify
+
+You can set the expiration of token while signing the token 
+
+jwt.sign(TOKEN, SECRET, EXPIRATION)
+
+{expiresIn: '1h'}
 ------------------
 
 <details>
@@ -2986,6 +2992,1044 @@ const user = await User.findById(decoded._id);
 ### Clear Cookie (Logout)
 ```javascript
 res.cookie("token", null, { expires: new Date(Date.now()) });
+```
+
+</details>
+
+Mongoose schema methods 
+
+Every user has a diff way of signing the token, so you can offload such things into user schema methods
+
+userSchema.methods.getJWT = async function() {
+    const user = this; //it will represent that particular instance
+    //"this keyword wont work in arrow function"
+    const token = await jwt.sign({ _id: user._id }, "VIKRAM@^*@#", {expiresIn: '1d'})
+    return token;
+}
+
+while writing these things make sure not to write them in arrow functions, as they break things up
+
+using schema method inside we can write 
+
+```
+        if (isPasswordValid) {
+            const token = await user.getJWT();
+            res.cookie("token", token)
+            //Add the token to cookie and send the response back to user
+            res.status(200).send("Login Successful!")
+        } 
+```
+inside 
+```
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid Credentials!")
+        }
+        const user = await User.findOne({ emailId: emailId });
+        if (!user) {
+            throw new Error("User not present")
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password)
+        if (isPasswordValid) {
+            const token = await user.getJWT();
+            res.cookie("token", token)
+            //Add the token to cookie and send the response back to user
+            res.status(200).send("Login Successful!")
+        } else {
+            throw new Error("Invalid Credentials!")
+        }
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message)
+    }
+})
+```
+
+-> To validate the password
+```
+userSchema.methods.validatePassword = async function (passwordInputByUser) {
+    const user = this;
+    const passwordHash = user.password
+    const isPasswordValid = bcrypt.compare(passwordInputByUser, passwordHash)
+    return isPasswordValid;
+} 
+```
+```
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid Credentials!")
+        }
+        const user = await User.findOne({ emailId: emailId });
+        if (!user) {
+            throw new Error("User not present")
+        }
+        const isPasswordValid = await user.validatePassword(password)
+        if (isPasswordValid) {
+            const token = await user.getJWT();
+            res.cookie("token", token)
+            //Add the token to cookie and send the response back to user
+            res.status(200).send("Login Successful!")
+        } else {
+            throw new Error("Invalid Credentials!")
+        }
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message)
+    }
+})
+```
+
+
+<details>
+<summary><strong>🔧 Mongoose Schema Methods (Instance Methods)</strong></summary>
+
+<details>
+<summary><strong>Table of Contents</strong></summary>
+
+- [What are Schema Methods?](#what-are-schema-methods)
+- [Why Use Schema Methods?](#why-use-schema-methods)
+- [Creating Schema Methods](#creating-schema-methods)
+- [Common Use Cases](#common-use-cases)
+- [Complete Implementation](#complete-implementation)
+- [Instance Methods vs Static Methods](#instance-methods-vs-static-methods)
+- [Best Practices](#best-practices)
+- [Common Mistakes](#common-mistakes)
+
+</details>
+
+---
+
+<details>
+<summary><strong>What are Schema Methods?</strong></summary>
+
+**Schema methods** (also called **instance methods**) are custom functions that you can add to your Mongoose schema. These methods are available on each document instance.
+
+### Key Characteristics
+
+- Defined using `schema.methods.methodName`
+- Available on document instances (individual users, posts, etc.)
+- Can access document data using `this` keyword
+- Cannot use arrow functions (they break `this` binding)
+- Help organize business logic related to documents
+
+### Basic Example
+```javascript
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema({
+    firstName: String,
+    lastName: String
+});
+
+// Define a schema method
+userSchema.methods.getFullName = function() {
+    return `${this.firstName} ${this.lastName}`;
+};
+
+const User = mongoose.model("User", userSchema);
+
+// Usage
+const user = await User.findById(userId);
+console.log(user.getFullName());  // "John Doe"
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Why Use Schema Methods?</strong></summary>
+
+### Benefits
+
+1. **Code Reusability**: Write logic once, use it everywhere
+2. **Encapsulation**: Keep document-related logic with the schema
+3. **Cleaner Routes**: Remove repetitive code from route handlers
+4. **Maintainability**: Changes in one place affect all usages
+5. **Testing**: Easier to test isolated methods
+6. **Readability**: Self-documenting code with meaningful method names
+
+### Without Schema Methods ❌
+```javascript
+// Repeated code in multiple routes
+app.post("/login", async (req, res) => {
+    const user = await User.findOne({ emailId });
+    const token = jwt.sign({ _id: user._id }, "SECRET", { expiresIn: '1d' });
+    // ... more code
+});
+
+app.post("/refresh", async (req, res) => {
+    const user = await User.findById(userId);
+    const token = jwt.sign({ _id: user._id }, "SECRET", { expiresIn: '1d' });
+    // ... same code repeated
+});
+```
+
+### With Schema Methods ✅
+```javascript
+// Define once in schema
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, "SECRET", { expiresIn: '1d' });
+};
+
+// Use everywhere
+app.post("/login", async (req, res) => {
+    const user = await User.findOne({ emailId });
+    const token = user.getJWT();  // Clean and reusable
+});
+
+app.post("/refresh", async (req, res) => {
+    const user = await User.findById(userId);
+    const token = user.getJWT();  // Same method, no duplication
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Creating Schema Methods</strong></summary>
+
+### Basic Syntax
+```javascript
+schemaName.methods.methodName = function() {
+    // 'this' refers to the document instance
+    // DO NOT use arrow functions!
+};
+```
+
+### Important Rules
+
+1. **Always use regular function syntax** (not arrow functions)
+2. **Use `this` to access document data**
+3. **Can be synchronous or asynchronous**
+4. **Defined before creating the model**
+
+### Example: JWT Token Generation Method
+```javascript
+const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
+
+const userSchema = new mongoose.Schema({
+    firstName: String,
+    lastName: String,
+    emailId: String,
+    password: String
+});
+
+// Schema method to generate JWT token
+userSchema.methods.getJWT = function() {
+    const user = this;  // 'this' represents the document instance
+    
+    const token = jwt.sign(
+        { _id: user._id },           // Payload
+        "VIKRAM@^*@#",               // Secret (use env variable in production)
+        { expiresIn: '1d' }          // Options
+    );
+    
+    return token;
+};
+
+// Create model AFTER defining methods
+const User = mongoose.model("User", userSchema);
+
+module.exports = User;
+```
+
+### Why Arrow Functions Don't Work
+```javascript
+// ❌ WRONG - Arrow function breaks 'this' binding
+userSchema.methods.getJWT = () => {
+    const user = this;  // 'this' is undefined or wrong context!
+    return jwt.sign({ _id: user._id }, secret);
+};
+
+// ✅ CORRECT - Regular function preserves 'this'
+userSchema.methods.getJWT = function() {
+    const user = this;  // 'this' correctly refers to the document
+    return jwt.sign({ _id: user._id }, secret);
+};
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Common Use Cases</strong></summary>
+
+### 1. Generate JWT Token
+```javascript
+userSchema.methods.getJWT = function() {
+    const user = this;
+    
+    const token = jwt.sign(
+        { _id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+    );
+    
+    return token;
+};
+
+// Usage
+const user = await User.findOne({ emailId });
+const token = user.getJWT();
+res.cookie("token", token);
+```
+
+### 2. Validate Password
+```javascript
+userSchema.methods.validatePassword = async function(passwordInputByUser) {
+    const user = this;
+    const passwordHash = user.password;
+    
+    const isPasswordValid = await bcrypt.compare(
+        passwordInputByUser,
+        passwordHash
+    );
+    
+    return isPasswordValid;
+};
+
+// Usage
+const user = await User.findOne({ emailId });
+const isValid = await user.validatePassword(password);
+
+if (isValid) {
+    // Login successful
+}
+```
+
+### 3. Get Full Name
+```javascript
+userSchema.methods.getFullName = function() {
+    return `${this.firstName} ${this.lastName}`;
+};
+
+// Usage
+const user = await User.findById(userId);
+console.log(user.getFullName());  // "John Doe"
+```
+
+### 4. Get Profile Data (Exclude Sensitive Fields)
+```javascript
+userSchema.methods.getPublicProfile = function() {
+    const user = this;
+    
+    return {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        emailId: user.emailId,
+        age: user.age
+        // Password is excluded
+    };
+};
+
+// Usage
+const user = await User.findById(userId);
+res.json(user.getPublicProfile());
+```
+
+### 5. Check if User is Admin
+```javascript
+userSchema.methods.isAdmin = function() {
+    return this.role === 'admin';
+};
+
+// Usage
+const user = await User.findById(userId);
+if (user.isAdmin()) {
+    // Allow admin actions
+}
+```
+
+### 6. Generate Password Reset Token
+```javascript
+userSchema.methods.generatePasswordResetToken = function() {
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    this.passwordResetToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+    
+    this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    
+    return resetToken;
+};
+
+// Usage
+const user = await User.findOne({ emailId });
+const resetToken = user.generatePasswordResetToken();
+await user.save();
+```
+
+### 7. Format User Data for Response
+```javascript
+userSchema.methods.toJSON = function() {
+    const user = this;
+    const userObject = user.toObject();
+    
+    // Remove sensitive fields
+    delete userObject.password;
+    delete userObject.__v;
+    
+    return userObject;
+};
+
+// Usage
+const user = await User.findById(userId);
+res.json(user);  // Automatically uses toJSON()
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Complete Implementation</strong></summary>
+
+### User Model with Schema Methods
+```javascript
+// models/user.js
+const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const validator = require("validator");
+
+const userSchema = new mongoose.Schema({
+    firstName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    lastName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    emailId: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        validate: {
+            validator: validator.isEmail,
+            message: "Invalid email format"
+        }
+    },
+    password: {
+        type: String,
+        required: true,
+        minLength: 6
+    },
+    age: {
+        type: Number,
+        min: 18
+    },
+    role: {
+        type: String,
+        enum: ['user', 'admin'],
+        default: 'user'
+    }
+}, {
+    timestamps: true
+});
+
+// Method 1: Generate JWT Token
+userSchema.methods.getJWT = function() {
+    const user = this;
+    
+    const token = jwt.sign(
+        { _id: user._id },
+        process.env.JWT_SECRET || "VIKRAM@^*@#",
+        { expiresIn: '1d' }
+    );
+    
+    return token;
+};
+
+// Method 2: Validate Password
+userSchema.methods.validatePassword = async function(passwordInputByUser) {
+    const user = this;
+    const passwordHash = user.password;
+    
+    const isPasswordValid = await bcrypt.compare(
+        passwordInputByUser,
+        passwordHash
+    );
+    
+    return isPasswordValid;
+};
+
+// Method 3: Get Full Name
+userSchema.methods.getFullName = function() {
+    return `${this.firstName} ${this.lastName}`;
+};
+
+// Method 4: Get Public Profile
+userSchema.methods.getPublicProfile = function() {
+    const user = this;
+    
+    return {
+        id: user._id,
+        fullName: user.getFullName(),
+        emailId: user.emailId,
+        age: user.age,
+        role: user.role,
+        createdAt: user.createdAt
+    };
+};
+
+// Method 5: Check if Admin
+userSchema.methods.isAdmin = function() {
+    return this.role === 'admin';
+};
+
+// Pre-save middleware to hash password
+userSchema.pre("save", async function(next) {
+    if (!this.isModified("password")) {
+        return next();
+    }
+    
+    try {
+        this.password = await bcrypt.hash(this.password, 10);
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+
+const User = mongoose.model("User", userSchema);
+
+module.exports = User;
+```
+
+### Login Route Using Schema Methods
+```javascript
+// routes/auth.js
+const express = require("express");
+const validator = require("validator");
+const User = require("../models/user");
+
+const router = express.Router();
+
+router.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        // Validate email format
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // Find user by email
+        const user = await User.findOne({ emailId: emailId });
+        
+        if (!user) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // Validate password using schema method
+        const isPasswordValid = await user.validatePassword(password);
+        
+        if (!isPasswordValid) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // Generate JWT token using schema method
+        const token = user.getJWT();
+        
+        // Set token in cookie
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 24 * 60 * 60 * 1000  // 1 day
+        });
+        
+        // Send success response
+        res.status(200).json({
+            message: "Login Successful!",
+            user: user.getPublicProfile()
+        });
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+
+module.exports = router;
+```
+
+### Profile Route Using Schema Methods
+```javascript
+router.get("/profile", auth, async (req, res) => {
+    try {
+        // req.user is set by auth middleware
+        const user = req.user;
+        
+        // Use schema method to get public profile
+        res.json({
+            profile: user.getPublicProfile(),
+            fullName: user.getFullName(),
+            isAdmin: user.isAdmin()
+        });
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+```
+
+### Complete Server Example
+```javascript
+// app.js
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const connectDB = require("./config/database");
+const User = require("./models/user");
+const validator = require("validator");
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
+
+// Signup Route
+app.post("/signup", async (req, res) => {
+    try {
+        const { firstName, lastName, emailId, password, age } = req.body;
+        
+        // Create user (password will be hashed by pre-save hook)
+        const user = new User({
+            firstName,
+            lastName,
+            emailId,
+            password,
+            age
+        });
+        
+        await user.save();
+        
+        // Generate token using schema method
+        const token = user.getJWT();
+        
+        res.cookie("token", token, { httpOnly: true });
+        
+        res.status(201).json({
+            message: "User created successfully!",
+            user: user.getPublicProfile()
+        });
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+
+// Login Route
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        const user = await User.findOne({ emailId: emailId });
+        
+        if (!user) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // Use schema method to validate password
+        const isPasswordValid = await user.validatePassword(password);
+        
+        if (!isPasswordValid) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // Use schema method to generate token
+        const token = user.getJWT();
+        
+        res.cookie("token", token, {
+            httpOnly: true,
+            maxAge: 24 * 60 * 60 * 1000
+        });
+        
+        res.status(200).json({
+            message: "Login Successful!",
+            user: user.getPublicProfile()
+        });
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+
+// Profile Route
+app.get("/profile", async (req, res) => {
+    try {
+        const { token } = req.cookies;
+        
+        if (!token) {
+            throw new Error("Please login!");
+        }
+        
+        const jwt = require("jsonwebtoken");
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || "VIKRAM@^*@#");
+        
+        const user = await User.findById(decoded._id);
+        
+        if (!user) {
+            throw new Error("User not found!");
+        }
+        
+        // Use schema methods
+        res.json({
+            fullName: user.getFullName(),
+            profile: user.getPublicProfile(),
+            isAdmin: user.isAdmin()
+        });
+        
+    } catch (error) {
+        res.status(401).send("ERROR: " + error.message);
+    }
+});
+
+// Start server
+connectDB()
+    .then(() => {
+        console.log("Database connected!");
+        app.listen(8888, () => {
+            console.log("Server running on port 8888");
+        });
+    })
+    .catch(err => console.error("Database error:", err));
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Instance Methods vs Static Methods</strong></summary>
+
+### Instance Methods (`schema.methods`)
+
+Called on **document instances** (individual users, posts, etc.)
+```javascript
+// Define instance method
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, secret);
+};
+
+// Usage - called on a specific user document
+const user = await User.findById(userId);
+const token = user.getJWT();  // Called on instance
+```
+
+### Static Methods (`schema.statics`)
+
+Called on the **Model itself** (User, Post, etc.)
+```javascript
+// Define static method
+userSchema.statics.findByEmail = function(email) {
+    return this.findOne({ emailId: email });
+};
+
+// Usage - called on the Model
+const user = await User.findByEmail("test@example.com");  // Called on Model
+```
+
+### Comparison Table
+
+| Feature | Instance Methods | Static Methods |
+|---------|-----------------|----------------|
+| Definition | `schema.methods.name` | `schema.statics.name` |
+| Called On | Document instance | Model class |
+| `this` refers to | Document | Model |
+| Use Case | Document-specific logic | Model-level queries |
+| Example | `user.getJWT()` | `User.findByEmail()` |
+
+### When to Use Each
+
+**Instance Methods** - Use when:
+- Operating on a specific document
+- Need access to document data
+- Examples: generate token, validate password, format data
+
+**Static Methods** - Use when:
+- Creating custom queries
+- Model-level operations
+- Examples: find by custom criteria, aggregate data
+
+### Combined Example
+```javascript
+// Instance method - operates on single user
+userSchema.methods.validatePassword = async function(password) {
+    return await bcrypt.compare(password, this.password);
+};
+
+// Static method - finds user by email
+userSchema.statics.findByEmail = function(email) {
+    return this.findOne({ emailId: email });
+};
+
+// Usage
+const user = await User.findByEmail("test@example.com");  // Static
+const isValid = await user.validatePassword("password123");  // Instance
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Best Practices</strong></summary>
+
+### 1. Use Regular Functions (Not Arrow Functions)
+```javascript
+// ❌ Wrong - Arrow function breaks 'this'
+userSchema.methods.getJWT = () => {
+    return jwt.sign({ _id: this._id }, secret);  // 'this' is undefined!
+};
+
+// ✅ Correct - Regular function
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, secret);  // 'this' works!
+};
+```
+
+### 2. Use Descriptive Method Names
+```javascript
+// ❌ Bad - unclear names
+userSchema.methods.doThing = function() { ... };
+userSchema.methods.check = function() { ... };
+
+// ✅ Good - clear, descriptive names
+userSchema.methods.generateJWT = function() { ... };
+userSchema.methods.validatePassword = function() { ... };
+userSchema.methods.getPublicProfile = function() { ... };
+```
+
+### 3. Store `this` in a Variable for Clarity
+```javascript
+userSchema.methods.getJWT = function() {
+    const user = this;  // Clear reference to document
+    
+    return jwt.sign(
+        { _id: user._id, email: user.emailId },
+        secret
+    );
+};
+```
+
+### 4. Handle Async Operations Properly
+```javascript
+// ❌ Wrong - missing await
+userSchema.methods.validatePassword = function(password) {
+    return bcrypt.compare(password, this.password);  // Returns Promise
+};
+
+// ✅ Correct - async/await
+userSchema.methods.validatePassword = async function(password) {
+    return await bcrypt.compare(password, this.password);
+};
+```
+
+### 5. Don't Expose Sensitive Data
+```javascript
+// ❌ Bad - exposes password
+userSchema.methods.getData = function() {
+    return this;
+};
+
+// ✅ Good - excludes sensitive fields
+userSchema.methods.getPublicProfile = function() {
+    return {
+        id: this._id,
+        firstName: this.firstName,
+        emailId: this.emailId
+        // password excluded
+    };
+};
+```
+
+### 6. Keep Methods Focused and Small
+```javascript
+// ❌ Bad - doing too much
+userSchema.methods.loginUser = async function(password) {
+    const isValid = await bcrypt.compare(password, this.password);
+    const token = jwt.sign({ _id: this._id }, secret);
+    // ... more logic
+};
+
+// ✅ Good - separate concerns
+userSchema.methods.validatePassword = async function(password) {
+    return await bcrypt.compare(password, this.password);
+};
+
+userSchema.methods.generateToken = function() {
+    return jwt.sign({ _id: this._id }, secret);
+};
+```
+
+### 7. Use Environment Variables for Secrets
+```javascript
+// ❌ Bad - hardcoded secret
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, "HARDCODED_SECRET");
+};
+
+// ✅ Good - environment variable
+userSchema.methods.getJWT = function() {
+    return jwt.sign(
+        { _id: this._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+    );
+};
+```
+
+### 8. Add Error Handling
+```javascript
+userSchema.methods.getJWT = function() {
+    try {
+        const token = jwt.sign(
+            { _id: this._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+        return token;
+    } catch (error) {
+        throw new Error("Failed to generate token: " + error.message);
+    }
+};
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Common Mistakes</strong></summary>
+
+### Mistake 1: Using Arrow Functions
+```javascript
+// ❌ WRONG - 'this' doesn't work in arrow functions
+userSchema.methods.getJWT = () => {
+    return jwt.sign({ _id: this._id }, secret);  // this is undefined!
+};
+
+// ✅ CORRECT
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, secret);
+};
+```
+
+### Mistake 2: Not Using `await` with Async Methods
+```javascript
+// ❌ WRONG - not awaiting async method
+const isValid = user.validatePassword(password);  // Returns Promise
+if (isValid) { ... }  // Always truthy (it's a Promise object!)
+
+// ✅ CORRECT
+const isValid = await user.validatePassword(password);
+if (isValid) { ... }  // Now it's the actual boolean value
+```
+
+### Mistake 3: Defining Methods After Model Creation
+```javascript
+// ❌ WRONG - methods defined after model
+const User = mongoose.model("User", userSchema);
+
+userSchema.methods.getJWT = function() { ... };  // Too late!
+
+// ✅ CORRECT - methods defined before model
+userSchema.methods.getJWT = function() { ... };
+
+const User = mongoose.model("User", userSchema);
+```
+
+### Mistake 4: Calling Instance Method on Model
+```javascript
+// ❌ WRONG - calling instance method on Model
+const token = User.getJWT();  // Error! Not a function
+
+// ✅ CORRECT - call on document instance
+const user = await User.findById(userId);
+const token = user.getJWT();
+```
+
+### Mistake 5: Modifying `this` Incorrectly
+```javascript
+// ❌ WRONG - assigning new object to 'this'
+userSchema.methods.update = function(data) {
+    this = { ...this, ...data };  // Can't reassign 'this'
+};
+
+// ✅ CORRECT - modify properties of 'this'
+userSchema.methods.update = function(data) {
+    Object.assign(this, data);
+    return this.save();
+};
+```
+
+### Mistake 6: Not Returning Values
+```javascript
+// ❌ WRONG - method doesn't return anything
+userSchema.methods.getJWT = function() {
+    jwt.sign({ _id: this._id }, secret);  // Missing return!
+};
+
+const token = user.getJWT();  // undefined
+
+// ✅ CORRECT
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, secret);
+};
+```
+
+</details>
+
+---
+
+## Quick Reference
+
+### Define Schema Method
+```javascript
+userSchema.methods.methodName = function() {
+    const user = this;  // Document instance
+    // Your logic here
+    return result;
+};
+```
+
+### Generate JWT Token
+```javascript
+userSchema.methods.getJWT = function() {
+    return jwt.sign({ _id: this._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+};
+```
+
+### Validate Password
+```javascript
+userSchema.methods.validatePassword = async function(password) {
+    return await bcrypt.compare(password, this.password);
+};
+```
+
+### Usage in Routes
+```javascript
+const user = await User.findOne({ emailId });
+const token = user.getJWT();
+const isValid = await user.validatePassword(password);
 ```
 
 </details>
