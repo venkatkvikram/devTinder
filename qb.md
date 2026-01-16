@@ -54,3 +54,7 @@
 
 - Create User Schema method to getJWT
 - Create User Schema method to validatePassword
+
+- Explore Tinder APIs
+- Create a list of all API you can think of in Dev Tinder
+- Group multiple routes under respecitve routers
