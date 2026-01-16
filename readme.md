@@ -1245,6 +1245,7 @@ When you encrypt a password
 <details>
 <summary><strong>Why Encrypt Passwords?</strong></summary>
 
+
 **NEVER store plain text passwords in your database!**
 
 ### Problems with Plain Text Passwords:
@@ -1912,6 +1913,7 @@ const isValid = await bcrypt.compare(password, hash);
 
 ### Comparing
 
+
 | Method | Description | Usage |
 |--------|-------------|-------|
 | `bcrypt.compare(password, hash)` | Compare password (async) | `await bcrypt.compare(pwd, hash)` |
@@ -1923,6 +1925,7 @@ const isValid = await bcrypt.compare(password, hash);
 
 <details>
 <summary><strong>Testing Password Hashing</strong></summary>
+
 ```javascript
 const bcrypt = require("bcrypt");
 
@@ -1973,5 +1976,1016 @@ testBcrypt();
 - Validate password strength before hashing
 - Use generic error messages to prevent user enumeration
 - Implement additional security measures (rate limiting, account lockout, etc.)
+
+</details>
+
+## Cookies and JWT 
+
+### Short summary: 
+Cookie parser Middleware used to parse cookies
+
+const cookieParser = require("cookie-parser");
+app.use(cookieParser()); 
+
+JWT token (JSON web token)
+- Can contain special information inside them
+
+Token is divided into 3 things
+1. Header
+2. Payload
+3. Signature
+
+To create JWT token "jsonwebtoken" package
+
+Login Flow 
+
+-> Login (email, password)
+-> Server validates the credentials, generates JWT token
+-> Puts the JWT token inside the cookie
+-> Cookie is sent back in the response
+
+jwt.sign, jwt.verify
+------------------
+
+<details>
+<summary><strong>🍪 Cookie Parser & JWT Authentication in Node.js</strong></summary>
+
+<details>
+<summary><strong>Table of Contents</strong></summary>
+
+- [What is Cookie Parser?](#what-is-cookie-parser)
+- [What is JWT (JSON Web Token)?](#what-is-jwt-json-web-token)
+- [JWT Structure](#jwt-structure)
+- [Installation](#installation)
+- [Login Flow with JWT](#login-flow-with-jwt)
+- [Complete Implementation](#complete-implementation)
+- [JWT Methods Reference](#jwt-methods-reference)
+- [Best Practices](#best-practices)
+- [Common Mistakes](#common-mistakes)
+- [Security Considerations](#security-considerations)
+
+</details>
+
+---
+
+<details>
+<summary><strong>What is Cookie Parser?</strong></summary>
+
+**cookie-parser** is a middleware that parses cookies attached to incoming client requests.
+
+### Why Use Cookie Parser?
+
+Without cookie-parser, you cannot access cookies sent by the client in your Express application.
+
+### Basic Usage
+```javascript
+const express = require("express");
+const cookieParser = require("cookie-parser");
+
+const app = express();
+
+// Use cookie-parser middleware
+app.use(cookieParser());
+
+// Now you can access cookies via req.cookies
+app.get("/test", (req, res) => {
+    console.log(req.cookies);  // Access all cookies
+    console.log(req.cookies.token);  // Access specific cookie
+    res.send("Cookies parsed!");
+});
+```
+
+### What It Does
+```javascript
+// Without cookie-parser
+req.headers.cookie  // "token=abc123; user=john"  (string)
+
+// With cookie-parser
+req.cookies  // { token: "abc123", user: "john" }  (object)
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>What is JWT (JSON Web Token)?</strong></summary>
+
+**JWT (JSON Web Token)** is a compact, URL-safe token that contains encoded information and can be verified and trusted because it is digitally signed.
+
+### Key Features
+
+- **Stateless**: Server doesn't need to store session data
+- **Self-contained**: Token contains all necessary user information
+- **Secure**: Digitally signed to prevent tampering
+- **Compact**: Can be sent via URL, POST parameter, or HTTP header
+
+### Why Use JWT?
+
+- ✅ No need to maintain session storage on the server
+- ✅ Scalable across multiple servers
+- ✅ Can contain user information (claims)
+- ✅ Works well with APIs and mobile apps
+- ✅ Supports expiration time
+
+### Common Use Cases
+
+- User authentication
+- API authorization
+- Information exchange between parties
+- Single Sign-On (SSO)
+
+</details>
+
+---
+
+<details>
+<summary><strong>JWT Structure</strong></summary>
+
+A JWT token is divided into **3 parts** separated by dots (`.`):
+```
+xxxxx.yyyyy.zzzzz
+```
+
+### 1. Header
+
+Contains the type of token (JWT) and the signing algorithm (HS256, RS256, etc.)
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+### 2. Payload
+
+Contains the claims (data/information about the user)
+```json
+{
+  "_id": "507f1f77bcf86cd799439011",
+  "email": "user@example.com",
+  "iat": 1516239022,
+  "exp": 1516242622
+}
+```
+
+**Common Claims:**
+- `_id`: User ID
+- `iat` (issued at): Token creation timestamp
+- `exp` (expiration): Token expiry timestamp
+- Custom claims: Any data you want to include
+
+### 3. Signature
+
+Created by combining:
+- Encoded header
+- Encoded payload
+- Secret key
+- Algorithm specified in header
+```
+HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  secret
+)
+```
+
+### Example JWT Token
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEiLCJpYXQiOjE1MTYyMzkwMjJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+**Parts:**
+- **Header**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9`
+- **Payload**: `eyJfaWQiOiI1MDdmMWY3N2JjZjg2Y2Q3OTk0MzkwMTEiLCJpYXQiOjE1MTYyMzkwMjJ9`
+- **Signature**: `SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c`
+
+</details>
+
+---
+
+<details>
+<summary><strong>Installation</strong></summary>
+
+Install required packages:
+```bash
+npm install express cookie-parser jsonwebtoken bcrypt validator mongoose
+```
+
+### Package Purposes
+
+| Package | Purpose |
+|---------|---------|
+| `express` | Web framework |
+| `cookie-parser` | Parse cookies from requests |
+| `jsonwebtoken` | Create and verify JWT tokens |
+| `bcrypt` | Hash and compare passwords |
+| `validator` | Validate email and other inputs |
+| `mongoose` | MongoDB object modeling |
+
+</details>
+
+---
+
+<details>
+<summary><strong>Login Flow with JWT</strong></summary>
+
+### Authentication Flow Diagram
+```
+Client                          Server                        Database
+  |                               |                               |
+  |--1. POST /login------------->|                               |
+  |   (email, password)           |                               |
+  |                               |--2. Find user--------------->|
+  |                               |<--3. User data---------------|
+  |                               |                               |
+  |                               |--4. Compare password          |
+  |                               |   (bcrypt.compare)            |
+  |                               |                               |
+  |                               |--5. Generate JWT token        |
+  |                               |   (jwt.sign)                  |
+  |                               |                               |
+  |<--6. Set cookie & response----|                               |
+  |   (Set-Cookie: token=xxx)     |                               |
+  |                               |                               |
+```
+
+### Step-by-Step Process
+
+1. **User sends login credentials** (email, password)
+2. **Server validates email format**
+3. **Server finds user in database**
+4. **Server compares password** using bcrypt
+5. **Server generates JWT token** containing user ID
+6. **Server puts JWT token in cookie**
+7. **Cookie is sent back in response**
+8. **Browser automatically stores cookie**
+9. **Browser sends cookie with every subsequent request**
+
+### Accessing Protected Routes
+```
+Client                          Server                        Database
+  |                               |                               |
+  |--1. GET /profile------------->|                               |
+  |   Cookie: token=xxx           |                               |
+  |                               |                               |
+  |                               |--2. Extract token from cookie |
+  |                               |                               |
+  |                               |--3. Verify token              |
+  |                               |   (jwt.verify)                |
+  |                               |                               |
+  |                               |--4. Get user ID from token    |
+  |                               |                               |
+  |                               |--5. Find user--------------->|
+  |                               |<--6. User data---------------|
+  |                               |                               |
+  |<--7. Send user profile--------|                               |
+  |                               |                               |
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Complete Implementation</strong></summary>
+
+### Server Setup
+```javascript
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const validator = require("validator");
+const User = require("./models/user");
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());  // IMPORTANT: Parse cookies from requests
+```
+
+### Login Route (Create JWT Token)
+```javascript
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        // 1. Validate email format
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // 2. Find user in database
+        const user = await User.findOne({ emailId: emailId });
+        if (!user) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // 3. Compare password with hashed password
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        
+        if (!isPasswordValid) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // 4. Create JWT token with user ID
+        const token = await jwt.sign(
+            { _id: user._id },           // Payload (user data)
+            "VIKRAM@^*@#"                // Secret key
+        );
+        
+        // 5. Set token in cookie
+        res.cookie("token", token);
+        
+        // 6. Send success response
+        res.status(200).send("Login Successful!");
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+```
+
+### Profile Route (Verify JWT Token)
+```javascript
+app.get("/profile", async (req, res) => {
+    try {
+        // 1. Get token from cookies
+        const { token } = req.cookies;
+        
+        if (!token) {
+            throw new Error("User Not Registered!");
+        }
+        
+        // 2. Verify token and decode payload
+        const decodedToken = jwt.verify(token, "VIKRAM@^*@#");
+        
+        // 3. Extract user ID from decoded token
+        const { _id } = decodedToken;
+        
+        // 4. Find user in database
+        const user = await User.findById(_id);
+        
+        if (!user) {
+            throw new Error("User not found!");
+        }
+        
+        // 5. Send user profile (exclude password)
+        res.status(200).json({
+            id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            emailId: user.emailId,
+            age: user.age
+        });
+        
+    } catch (err) {
+        res.status(400).send("Error: " + err.message);
+    }
+});
+```
+
+### Logout Route
+```javascript
+app.post("/logout", (req, res) => {
+    // Clear the token cookie
+    res.cookie("token", null, {
+        expires: new Date(Date.now())
+    });
+    res.send("Logout successful!");
+});
+```
+
+### Complete Server with Authentication
+```javascript
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const validator = require("validator");
+const connectDB = require("./config/database");
+const User = require("./models/user");
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
+
+// Secret key (should be in environment variable)
+const JWT_SECRET = process.env.JWT_SECRET || "VIKRAM@^*@#";
+
+// Signup route
+app.post("/signup", async (req, res) => {
+    try {
+        const { firstName, lastName, emailId, password, age } = req.body;
+        
+        // Validate email
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid email!");
+        }
+        
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Create user
+        const user = new User({
+            firstName,
+            lastName,
+            emailId,
+            password: hashedPassword,
+            age
+        });
+        
+        await user.save();
+        res.status(201).send("User created successfully!");
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+
+// Login route
+app.post("/login", async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        const user = await User.findOne({ emailId: emailId });
+        if (!user) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            throw new Error("Invalid Credentials!");
+        }
+        
+        // Create JWT token with expiration
+        const token = jwt.sign(
+            { _id: user._id },
+            JWT_SECRET,
+            { expiresIn: "7d" }  // Token expires in 7 days
+        );
+        
+        // Set cookie with options
+        res.cookie("token", token, {
+            httpOnly: true,      // Prevents client-side JS access
+            secure: true,        // Only send over HTTPS (in production)
+            maxAge: 7 * 24 * 60 * 60 * 1000  // 7 days in milliseconds
+        });
+        
+        res.status(200).send("Login Successful!");
+        
+    } catch (error) {
+        res.status(400).send("ERROR: " + error.message);
+    }
+});
+
+// Profile route (protected)
+app.get("/profile", async (req, res) => {
+    try {
+        const { token } = req.cookies;
+        
+        if (!token) {
+            throw new Error("Please login to access this resource!");
+        }
+        
+        const decodedToken = jwt.verify(token, JWT_SECRET);
+        const { _id } = decodedToken;
+        
+        const user = await User.findById(_id).select("-password");
+        
+        if (!user) {
+            throw new Error("User not found!");
+        }
+        
+        res.status(200).json(user);
+        
+    } catch (err) {
+        res.status(401).send("Error: " + err.message);
+    }
+});
+
+// Logout route
+app.post("/logout", (req, res) => {
+    res.cookie("token", null, {
+        expires: new Date(Date.now())
+    });
+    res.send("Logout successful!");
+});
+
+// Start server
+connectDB()
+    .then(() => {
+        console.log("Database connected!");
+        app.listen(8888, () => {
+            console.log("Server running on port 8888");
+        });
+    })
+    .catch(err => console.error("Database connection error:", err));
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>JWT Methods Reference</strong></summary>
+
+### jwt.sign() - Create Token
+
+**Syntax:**
+```javascript
+jwt.sign(payload, secretOrPrivateKey, [options])
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `payload` | Object/String | Data to encode in token |
+| `secretOrPrivateKey` | String | Secret key for signing |
+| `options` | Object | Optional settings |
+
+**Common Options:**
+```javascript
+const token = jwt.sign(
+    { _id: user._id, email: user.email },  // Payload
+    "SECRET_KEY",                           // Secret
+    {
+        expiresIn: "7d",        // Expires in 7 days
+        issuer: "myapp",        // Who issued the token
+        audience: "users"       // Who can use the token
+    }
+);
+```
+
+**Expiration Time Formats:**
+```javascript
+expiresIn: "2h"      // 2 hours
+expiresIn: "7d"      // 7 days
+expiresIn: "10s"     // 10 seconds
+expiresIn: "1y"      // 1 year
+expiresIn: 3600      // 3600 seconds (1 hour)
+```
+
+### jwt.verify() - Verify Token
+
+**Syntax:**
+```javascript
+jwt.verify(token, secretOrPublicKey, [options])
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `token` | String | JWT token to verify |
+| `secretOrPublicKey` | String | Secret key used for signing |
+| `options` | Object | Optional settings |
+
+**Usage:**
+```javascript
+try {
+    const decoded = jwt.verify(token, "SECRET_KEY");
+    console.log(decoded);
+    // { _id: '123', email: 'user@example.com', iat: 1234567890, exp: 1234571490 }
+} catch (error) {
+    console.log("Invalid token:", error.message);
+}
+```
+
+**Common Errors:**
+```javascript
+// TokenExpiredError
+jwt.verify(expiredToken, "SECRET_KEY");
+// Error: jwt expired
+
+// JsonWebTokenError
+jwt.verify(invalidToken, "SECRET_KEY");
+// Error: invalid token
+
+// JsonWebTokenError (wrong secret)
+jwt.verify(token, "WRONG_SECRET");
+// Error: invalid signature
+```
+
+### jwt.decode() - Decode Without Verification
+
+**Syntax:**
+```javascript
+jwt.decode(token, [options])
+```
+
+**Warning**: This does NOT verify the signature. Only use for debugging.
+```javascript
+const decoded = jwt.decode(token);
+console.log(decoded);  // Shows payload without verification
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Best Practices</strong></summary>
+
+### 1. Use Environment Variables for Secret Key
+```javascript
+// ❌ Bad - hardcoded secret
+const token = jwt.sign({ _id: user._id }, "VIKRAM@^*@#");
+
+// ✅ Good - use environment variable
+require('dotenv').config();
+const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
+```
+
+**.env file:**
+```env
+JWT_SECRET=your-super-secret-key-min-32-characters-long
+```
+
+### 2. Set Token Expiration
+```javascript
+// ❌ Bad - no expiration
+const token = jwt.sign({ _id: user._id }, secret);
+
+// ✅ Good - with expiration
+const token = jwt.sign(
+    { _id: user._id },
+    secret,
+    { expiresIn: "7d" }
+);
+```
+
+### 3. Use httpOnly Cookies
+```javascript
+// ❌ Bad - accessible via JavaScript
+res.cookie("token", token);
+
+// ✅ Good - httpOnly prevents XSS attacks
+res.cookie("token", token, {
+    httpOnly: true,      // Cannot be accessed by client-side JS
+    secure: true,        // Only send over HTTPS
+    sameSite: "strict",  // CSRF protection
+    maxAge: 7 * 24 * 60 * 60 * 1000  // 7 days
+});
+```
+
+### 4. Don't Store Sensitive Data in JWT
+```javascript
+// ❌ Bad - storing sensitive data
+const token = jwt.sign({
+    _id: user._id,
+    password: user.password,      // Never!
+    creditCard: user.cardNumber   // Never!
+}, secret);
+
+// ✅ Good - only store necessary identifiers
+const token = jwt.sign({
+    _id: user._id,
+    email: user.email
+}, secret);
+```
+
+### 5. Create Authentication Middleware
+```javascript
+// middleware/auth.js
+const jwt = require("jsonwebtoken");
+const User = require("../models/user");
+
+const auth = async (req, res, next) => {
+    try {
+        const { token } = req.cookies;
+        
+        if (!token) {
+            throw new Error("Please authenticate!");
+        }
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded._id);
+        
+        if (!user) {
+            throw new Error("User not found!");
+        }
+        
+        req.user = user;  // Attach user to request object
+        next();
+        
+    } catch (error) {
+        res.status(401).send("Error: " + error.message);
+    }
+};
+
+module.exports = auth;
+```
+
+**Usage:**
+```javascript
+const auth = require("./middleware/auth");
+
+// Protected route
+app.get("/profile", auth, async (req, res) => {
+    res.json(req.user);  // User already attached by middleware
+});
+
+app.get("/dashboard", auth, async (req, res) => {
+    res.send(`Welcome ${req.user.firstName}!`);
+});
+```
+
+### 6. Handle Token Expiration Gracefully
+```javascript
+app.get("/profile", async (req, res) => {
+    try {
+        const { token } = req.cookies;
+        
+        if (!token) {
+            return res.status(401).send("Please login!");
+        }
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded._id);
+        
+        res.json(user);
+        
+    } catch (error) {
+        if (error.name === "TokenExpiredError") {
+            res.status(401).send("Session expired. Please login again!");
+        } else if (error.name === "JsonWebTokenError") {
+            res.status(401).send("Invalid token. Please login again!");
+        } else {
+            res.status(500).send("Server error!");
+        }
+    }
+});
+```
+
+### 7. Use Secure Secret Keys
+```javascript
+// ❌ Bad - weak secret
+const secret = "123";
+const secret = "password";
+
+// ✅ Good - strong, random secret
+const secret = "aB3$kL9@mP2#qR7*sT4&vW8!xY1^zA5%";
+
+// Generate strong secret (Node.js)
+require('crypto').randomBytes(32).toString('hex');
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Common Mistakes</strong></summary>
+
+### Mistake 1: Not Using cookie-parser
+```javascript
+// ❌ Wrong - req.cookies will be undefined
+app.get("/profile", (req, res) => {
+    const { token } = req.cookies;  // undefined!
+});
+
+// ✅ Correct - use cookie-parser middleware
+app.use(cookieParser());
+app.get("/profile", (req, res) => {
+    const { token } = req.cookies;  // Works!
+});
+```
+
+### Mistake 2: Wrong Order - jwt.sign is Synchronous
+```javascript
+// ❌ Wrong - no need for await
+const token = await jwt.sign({ _id: user._id }, secret);
+
+// ✅ Correct - jwt.sign is synchronous
+const token = jwt.sign({ _id: user._id }, secret);
+
+// Note: jwt.verify is also synchronous
+const decoded = jwt.verify(token, secret);  // No await needed
+```
+
+### Mistake 3: Using User.find() Instead of User.findById()
+```javascript
+// ❌ Wrong - returns array even for single result
+const user = await User.find({ _id: _id });
+res.send(user);  // Sends array: [{ user data }]
+
+// ✅ Correct - returns single document
+const user = await User.findById(_id);
+res.send(user);  // Sends object: { user data }
+```
+
+### Mistake 4: Not Handling Verification Errors
+```javascript
+// ❌ Wrong - will crash if token is invalid
+const decoded = jwt.verify(token, secret);
+
+// ✅ Correct - wrap in try-catch
+try {
+    const decoded = jwt.verify(token, secret);
+} catch (error) {
+    res.status(401).send("Invalid token!");
+}
+```
+
+### Mistake 5: Storing Token in Local Storage (Client-Side)
+```javascript
+// ❌ Bad - vulnerable to XSS attacks
+// Client-side code
+localStorage.setItem('token', token);
+
+// ✅ Good - use httpOnly cookies
+// Server-side code
+res.cookie("token", token, {
+    httpOnly: true,  // JavaScript cannot access
+    secure: true
+});
+```
+
+### Mistake 6: Not Setting Cookie Options in Production
+```javascript
+// ❌ Bad - insecure cookie
+res.cookie("token", token);
+
+// ✅ Good - secure cookie settings
+res.cookie("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Security Considerations</strong></summary>
+
+### 1. Secret Key Management
+
+- ✅ Use environment variables for secrets
+- ✅ Use long, random secrets (min 32 characters)
+- ✅ Never commit secrets to version control
+- ✅ Rotate secrets periodically
+- ❌ Never hardcode secrets in code
+
+### 2. Token Storage
+
+**Client-Side Options:**
+
+| Storage | Security | Recommendation |
+|---------|----------|----------------|
+| LocalStorage | ❌ Vulnerable to XSS | Never use for tokens |
+| SessionStorage | ❌ Vulnerable to XSS | Never use for tokens |
+| Cookies (httpOnly) | ✅ Protected from XSS | **Recommended** |
+| Memory | ✅ Secure but lost on refresh | For sensitive operations |
+
+### 3. Cookie Security Options
+```javascript
+res.cookie("token", token, {
+    httpOnly: true,      // ✅ Prevents XSS attacks
+    secure: true,        // ✅ Only HTTPS in production
+    sameSite: "strict",  // ✅ Prevents CSRF attacks
+    maxAge: 604800000,   // ✅ Set expiration (7 days)
+    domain: ".example.com", // Optional: specify domain
+    path: "/"            // Optional: cookie path
+});
+```
+
+### 4. Token Expiration
+```javascript
+// Short-lived access tokens
+const accessToken = jwt.sign(
+    { _id: user._id },
+    secret,
+    { expiresIn: "15m" }  // 15 minutes
+);
+
+// Long-lived refresh tokens
+const refreshToken = jwt.sign(
+    { _id: user._id },
+    refreshSecret,
+    { expiresIn: "7d" }  // 7 days
+);
+```
+
+### 5. HTTPS in Production
+```javascript
+// Development
+const cookieOptions = {
+    httpOnly: true,
+    secure: false  // Allow HTTP in development
+};
+
+// Production
+const cookieOptions = {
+    httpOnly: true,
+    secure: true,  // Require HTTPS
+    sameSite: "strict"
+};
+
+// Dynamic based on environment
+const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict"
+};
+```
+
+### 6. Sensitive Data Protection
+
+**Never include in JWT:**
+- ❌ Passwords (hashed or plain)
+- ❌ Credit card numbers
+- ❌ Social security numbers
+- ❌ Private API keys
+- ❌ Personal health information
+
+**Safe to include:**
+- ✅ User ID
+- ✅ Email address
+- ✅ Username
+- ✅ User role/permissions
+- ✅ Non-sensitive metadata
+
+### 7. Rate Limiting
+```javascript
+const rateLimit = require("express-rate-limit");
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15 minutes
+    max: 5,  // 5 requests per window
+    message: "Too many login attempts. Try again later."
+});
+
+app.post("/login", loginLimiter, async (req, res) => {
+    // Login logic
+});
+```
+
+### 8. Token Blacklisting (for Logout)
+```javascript
+// Simple in-memory blacklist (use Redis in production)
+const tokenBlacklist = new Set();
+
+// Logout route
+app.post("/logout", async (req, res) => {
+    const { token } = req.cookies;
+    tokenBlacklist.add(token);
+    res.cookie("token", null, { expires: new Date(Date.now()) });
+    res.send("Logged out!");
+});
+
+// Auth middleware
+const auth = async (req, res, next) => {
+    const { token } = req.cookies;
+    
+    if (tokenBlacklist.has(token)) {
+        return res.status(401).send("Token has been revoked!");
+    }
+    
+    // Continue verification...
+};
+```
+
+</details>
+
+---
+
+## Quick Reference
+
+### Cookie Parser Setup
+```javascript
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
+```
+
+### Create JWT Token (Login)
+```javascript
+const token = jwt.sign({ _id: user._id }, secret, { expiresIn: "7d" });
+res.cookie("token", token, { httpOnly: true });
+```
+
+### Verify JWT Token (Protected Route)
+```javascript
+const { token } = req.cookies;
+const decoded = jwt.verify(token, secret);
+const user = await User.findById(decoded._id);
+```
+
+### Clear Cookie (Logout)
+```javascript
+res.cookie("token", null, { expires: new Date(Date.now()) });
+```
 
 </details>
