@@ -1204,6 +1204,20 @@ unique -> text [Avoids duplicate records]
 
 ## Password Encryption with bcrypt in Node.js
 
+short summary : 
+Encrypting passwords
+
+- Passwords should be stored in a hash format, no one should be able to see the password in the db
+- Encrypted password
+- To encrypt the password we use a package known as bcrypt
+- bcrypt.hash returns a promise
+- To hash a password we need an decryption algorithm
+
+When you use bcrypt.hash it crwates a hash using the salt and a plain password and how many number of rounds that salt should be applied to create the password, the more the no. of salt rounds the tougher the password to decrypt
+
+When you encrypt a password
+    - you need a salt (random string)
+    -Now you take the plain password and the salt and then you do the multiple rounds of encryption
 <details>
 <summary><strong>📖 Password Encryption with bcrypt in Node.js</strong></summary>
 
