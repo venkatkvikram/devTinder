@@ -5,8 +5,11 @@ const User = require("./model/user")
 const validator = require("validator")
 const { validateSignUpData } = require("./utils/validation")
 const bcrypt = require("bcrypt")
+const jwt = require("jsonwebtoken")
+const cookieParser = require("cookie-parser")
 
 app.use(express.json()) //middleware
+app.use(cookieParser())
 //reads the JSON object and converts the JSON object to Javascript
 
 app.post("/signup", async (req, res) => {
@@ -40,9 +43,10 @@ app.post("/login", async (req, res) => {
         }
         const isPasswordValid = await bcrypt.compare(password, user.password)
         if (isPasswordValid) {
-
             //Create a JWT token
-            
+            // const token = await jwt.sign({ _id: user._id })
+            const token = await jwt.sign({ _id: user._id }, "VIKRAM@^*@#");
+            res.cookie("token", token)
             //Add the token to cookie and send the response back to user
             res.status(200).send("Login Successful!")
         } else {
@@ -64,6 +68,21 @@ app.get("/user", async (req, res) => {
         res.status(200).send(user);
     } catch (error) {
         res.status(400).send("Something went wrong!")
+    }
+})
+
+app.get("/profile", async (req, res) => {
+    try {
+        const { token } = req.cookies;
+        if (!token) {
+            throw new Error("User Not Registered!")
+        }
+        const decodedToken = jwt.verify(token, "VIKRAM@^*@#");
+        const { _id } = decodedToken;
+        const user = await User.find({ _id: _id })
+        res.status(200).send(user);
+    } catch (err) {
+        res.status(400).send("Error: " + err.message)
     }
 })
 
