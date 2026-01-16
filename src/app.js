@@ -6,7 +6,8 @@ const validator = require("validator")
 const { validateSignUpData } = require("./utils/validation")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
-const cookieParser = require("cookie-parser")
+const cookieParser = require("cookie-parser");
+const { userAuth } = require("./middlewares/auth"); //pass this before req handler
 
 app.use(express.json()) //middleware
 app.use(cookieParser())
@@ -45,7 +46,7 @@ app.post("/login", async (req, res) => {
         if (isPasswordValid) {
             //Create a JWT token
             // const token = await jwt.sign({ _id: user._id })
-            const token = await jwt.sign({ _id: user._id }, "VIKRAM@^*@#");
+            const token = await jwt.sign({ _id: user._id }, "VIKRAM@^*@#", {expiresIn: '1d'});
             res.cookie("token", token)
             //Add the token to cookie and send the response back to user
             res.status(200).send("Login Successful!")
@@ -58,7 +59,7 @@ app.post("/login", async (req, res) => {
 })
 
 //GET user by email
-app.get("/user", async (req, res) => {
+app.get("/user", userAuth, async (req, res) => {
     const userEmail = req.body.emailId;
     try {
         const user = await User.find({ emailId: userEmail });
@@ -71,23 +72,23 @@ app.get("/user", async (req, res) => {
     }
 })
 
-app.get("/profile", async (req, res) => {
+app.get("/profile", userAuth, async (req, res) => {
     try {
-        const { token } = req.cookies;
-        if (!token) {
-            throw new Error("User Not Registered!")
-        }
-        const decodedToken = jwt.verify(token, "VIKRAM@^*@#");
-        const { _id } = decodedToken;
-        const user = await User.find({ _id: _id })
+        const user = req.user;
         res.status(200).send(user);
     } catch (err) {
         res.status(400).send("Error: " + err.message)
     }
 })
 
+app.post("/sendConnectionRequest", userAuth, async (req, res) => {
+    const user = req.user;
+    console.log("Connection Request sent!")
+    res.send(user.firstName + " sent the Connection Request!")
+})
+
 //feed API - GET /feed
-app.get("/feed", async (req, res) => {
+app.get("/feed", userAuth, async (req, res) => {
     try {
         const users = await User.find({});
         res.status(200).send(users);
