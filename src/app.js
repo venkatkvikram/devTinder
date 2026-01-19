@@ -15,7 +15,7 @@ const requestRouter = require("./routes/requests")
 
 app.use("/", authRouter)
 app.use("/", profileRouter)
-// app.use("/", requestRouter)
+app.use("/", requestRouter)
 
 
 connectDB()
