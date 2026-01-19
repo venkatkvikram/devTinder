@@ -4033,3 +4033,1105 @@ const isValid = await user.validatePassword(password);
 ```
 
 </details>
+
+
+Express Router
+
+List APIs and Group them based on the type of APIs
+
+
+<details>
+<summary><strong>🛣️ Express Router - Organizing Routes</strong></summary>
+
+<details>
+<summary><strong>Table of Contents</strong></summary>
+
+- [What is Express Router?](#what-is-express-router)
+- [Why Use Express Router?](#why-use-express-router)
+- [Basic Router Setup](#basic-router-setup)
+- [Grouping Routes by Feature](#grouping-routes-by-feature)
+- [Complete Implementation](#complete-implementation)
+- [Router-Level Middleware](#router-level-middleware)
+- [Route Parameters and Query Strings](#route-parameters-and-query-strings)
+- [Best Practices](#best-practices)
+- [Common Mistakes](#common-mistakes)
+
+</details>
+
+---
+
+<details>
+<summary><strong>What is Express Router?</strong></summary>
+
+**Express Router** is a mini Express application that allows you to organize your routes into modular, mountable route handlers.
+
+### Key Features
+
+- **Modular routing**: Split routes into separate files
+- **Middleware support**: Apply middleware to specific route groups
+- **Mountable**: Can be mounted at different paths
+- **Organized**: Group related routes together
+- **Maintainable**: Easier to manage large applications
+
+### Without Router (Single File) ❌
+```javascript
+// app.js - Everything in one file
+const express = require("express");
+const app = express();
+
+// Auth routes
+app.post("/signup", (req, res) => { ... });
+app.post("/login", (req, res) => { ... });
+app.post("/logout", (req, res) => { ... });
+
+// User routes
+app.get("/user/profile", (req, res) => { ... });
+app.patch("/user/profile", (req, res) => { ... });
+app.delete("/user/account", (req, res) => { ... });
+
+// Admin routes
+app.get("/admin/users", (req, res) => { ... });
+app.delete("/admin/user/:id", (req, res) => { ... });
+app.get("/admin/stats", (req, res) => { ... });
+
+// Product routes
+app.get("/products", (req, res) => { ... });
+app.post("/products", (req, res) => { ... });
+app.get("/products/:id", (req, res) => { ... });
+
+// ... 100+ more routes
+// File becomes huge and unmanageable!
+```
+
+### With Router (Organized) ✅
+```javascript
+// app.js - Clean and organized
+const express = require("express");
+const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/user");
+const adminRoutes = require("./routes/admin");
+const productRoutes = require("./routes/product");
+
+const app = express();
+
+app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+app.use("/admin", adminRoutes);
+app.use("/products", productRoutes);
+
+// Much cleaner!
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Why Use Express Router?</strong></summary>
+
+### Benefits
+
+1. **Code Organization**
+   - Separate routes by feature/resource
+   - Easier to find and modify routes
+   - Clear project structure
+
+2. **Maintainability**
+   - Changes don't affect entire app
+   - Easier debugging
+   - Team members can work on different route files
+
+3. **Reusability**
+   - Same router can be mounted at different paths
+   - Share routers across projects
+
+4. **Middleware Management**
+   - Apply middleware to specific route groups
+   - Authentication only for protected routes
+
+5. **Scalability**
+   - Add new features without cluttering main file
+   - Handle hundreds of routes efficiently
+
+### Problem Without Router
+```javascript
+// app.js - 500+ lines
+app.get("/auth/login", ...);
+app.post("/auth/signup", ...);
+app.get("/user/profile", ...);
+app.patch("/user/settings", ...);
+app.get("/admin/dashboard", ...);
+app.delete("/admin/user/:id", ...);
+app.get("/products/list", ...);
+app.post("/products/create", ...);
+// ... 100+ more routes
+// Very hard to maintain!
+```
+
+### Solution With Router
+```javascript
+// app.js - Clean
+app.use("/auth", authRouter);
+app.use("/user", userRouter);
+app.use("/admin", adminRouter);
+app.use("/products", productRouter);
+
+// Each router in its own file
+// Easy to maintain and scale!
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Basic Router Setup</strong></summary>
+
+### Step 1: Create a Router File
+```javascript
+// routes/auth.js
+const express = require("express");
+const router = express.Router();
+
+// Define routes
+router.post("/signup", (req, res) => {
+    res.send("Signup route");
+});
+
+router.post("/login", (req, res) => {
+    res.send("Login route");
+});
+
+router.post("/logout", (req, res) => {
+    res.send("Logout route");
+});
+
+// Export router
+module.exports = router;
+```
+
+### Step 2: Import and Use in Main App
+```javascript
+// app.js
+const express = require("express");
+const authRouter = require("./routes/auth");
+
+const app = express();
+
+// Mount the router at /auth path
+app.use("/auth", authRouter);
+
+app.listen(3000);
+```
+
+### How It Works
+```
+Client Request: POST /auth/signup
+                     ↓
+app.use("/auth", authRouter)  → Matches /auth prefix
+                     ↓
+router.post("/signup", ...)   → Matches /signup path
+                     ↓
+Final Route: /auth/signup
+```
+
+### URL Structure
+
+| Router Mount | Route Path | Final URL |
+|-------------|------------|-----------|
+| `/auth` | `/signup` | `/auth/signup` |
+| `/auth` | `/login` | `/auth/login` |
+| `/user` | `/profile` | `/user/profile` |
+| `/admin` | `/users` | `/admin/users` |
+| `/products` | `/:id` | `/products/:id` |
+
+</details>
+
+---
+
+<details>
+<summary><strong>Grouping Routes by Feature</strong></summary>
+
+### Common Grouping Strategies
+
+1. **By Resource** (User, Product, Order)
+2. **By Feature** (Auth, Profile, Admin)
+3. **By Access Level** (Public, Protected, Admin)
+4. **By Version** (v1, v2)
+
+### Example 1: Authentication Routes
+```javascript
+// routes/auth.js
+const express = require("express");
+const router = express.Router();
+
+// POST /auth/signup
+router.post("/signup", signupController);
+
+// POST /auth/login
+router.post("/login", loginController);
+
+// POST /auth/logout
+router.post("/logout", logoutController);
+
+// POST /auth/forgot-password
+router.post("/forgot-password", forgotPasswordController);
+
+// POST /auth/reset-password
+router.post("/reset-password", resetPasswordController);
+
+module.exports = router;
+```
+
+### Example 2: User Routes
+```javascript
+// routes/user.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+
+// All routes require authentication
+router.use(auth);
+
+// GET /user/profile
+router.get("/profile", getProfileController);
+
+// PATCH /user/profile
+router.patch("/profile", updateProfileController);
+
+// DELETE /user/account
+router.delete("/account", deleteAccountController);
+
+// GET /user/settings
+router.get("/settings", getSettingsController);
+
+// PATCH /user/settings
+router.patch("/settings", updateSettingsController);
+
+module.exports = router;
+```
+
+### Example 3: Admin Routes
+```javascript
+// routes/admin.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/isAdmin");
+
+// All routes require authentication and admin role
+router.use(auth);
+router.use(isAdmin);
+
+// GET /admin/users
+router.get("/users", getAllUsersController);
+
+// GET /admin/users/:id
+router.get("/users/:id", getUserByIdController);
+
+// DELETE /admin/users/:id
+router.delete("/users/:id", deleteUserController);
+
+// GET /admin/stats
+router.get("/stats", getStatsController);
+
+// PATCH /admin/users/:id/role
+router.patch("/users/:id/role", updateUserRoleController);
+
+module.exports = router;
+```
+
+### Example 4: Product Routes
+```javascript
+// routes/product.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+
+// Public routes
+// GET /products
+router.get("/", getAllProductsController);
+
+// GET /products/:id
+router.get("/:id", getProductByIdController);
+
+// Protected routes (require authentication)
+// POST /products
+router.post("/", auth, createProductController);
+
+// PATCH /products/:id
+router.patch("/:id", auth, updateProductController);
+
+// DELETE /products/:id
+router.delete("/:id", auth, deleteProductController);
+
+module.exports = router;
+```
+
+### List of Common Route Groups
+
+#### Authentication Routes (`/auth`)
+- POST `/signup` - Create new account
+- POST `/login` - Login user
+- POST `/logout` - Logout user
+- POST `/refresh` - Refresh token
+- POST `/forgot-password` - Request password reset
+- POST `/reset-password` - Reset password
+- POST `/verify-email` - Verify email address
+
+#### User Routes (`/user`)
+- GET `/profile` - Get user profile
+- PATCH `/profile` - Update profile
+- DELETE `/account` - Delete account
+- GET `/settings` - Get user settings
+- PATCH `/settings` - Update settings
+- PATCH `/password` - Change password
+- GET `/notifications` - Get notifications
+
+#### Admin Routes (`/admin`)
+- GET `/users` - List all users
+- GET `/users/:id` - Get specific user
+- DELETE `/users/:id` - Delete user
+- PATCH `/users/:id/role` - Update user role
+- GET `/stats` - Get statistics
+- GET `/logs` - View system logs
+
+#### Product Routes (`/products`)
+- GET `/` - List all products
+- GET `/:id` - Get single product
+- POST `/` - Create product
+- PATCH `/:id` - Update product
+- DELETE `/:id` - Delete product
+- GET `/search` - Search products
+- GET `/category/:category` - Get by category
+
+#### Order Routes (`/orders`)
+- GET `/` - Get user's orders
+- GET `/:id` - Get specific order
+- POST `/` - Create new order
+- PATCH `/:id` - Update order
+- DELETE `/:id` - Cancel order
+- GET `/:id/status` - Get order status
+
+#### Profile Routes (`/profile`)
+- GET `/` - Get own profile
+- PATCH `/` - Update profile
+- POST `/avatar` - Upload avatar
+- DELETE `/avatar` - Delete avatar
+- GET `/posts` - Get user's posts
+- GET `/followers` - Get followers
+
+</details>
+
+---
+
+<details>
+<summary><strong>Complete Implementation</strong></summary>
+
+### Project Structure
+```
+project/
+├── config/
+│   └── database.js
+├── models/
+│   ├── user.js
+│   └── product.js
+├── controllers/
+│   ├── authController.js
+│   ├── userController.js
+│   ├── adminController.js
+│   └── productController.js
+├── middleware/
+│   ├── auth.js
+│   └── isAdmin.js
+├── routes/
+│   ├── auth.js
+│   ├── user.js
+│   ├── admin.js
+│   └── product.js
+├── app.js
+└── server.js
+```
+
+### Authentication Router
+```javascript
+// routes/auth.js
+const express = require("express");
+const router = express.Router();
+const {
+    signup,
+    login,
+    logout,
+    forgotPassword,
+    resetPassword
+} = require("../controllers/authController");
+
+// POST /auth/signup
+router.post("/signup", signup);
+
+// POST /auth/login
+router.post("/login", login);
+
+// POST /auth/logout
+router.post("/logout", logout);
+
+// POST /auth/forgot-password
+router.post("/forgot-password", forgotPassword);
+
+// POST /auth/reset-password/:token
+router.post("/reset-password/:token", resetPassword);
+
+module.exports = router;
+```
+
+### User Router
+```javascript
+// routes/user.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+const {
+    getProfile,
+    updateProfile,
+    deleteAccount,
+    changePassword
+} = require("../controllers/userController");
+
+// All user routes require authentication
+router.use(auth);
+
+// GET /user/profile
+router.get("/profile", getProfile);
+
+// PATCH /user/profile
+router.patch("/profile", updateProfile);
+
+// DELETE /user/account
+router.delete("/account", deleteAccount);
+
+// PATCH /user/password
+router.patch("/password", changePassword);
+
+module.exports = router;
+```
+
+### Admin Router
+```javascript
+// routes/admin.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/isAdmin");
+const {
+    getAllUsers,
+    getUserById,
+    deleteUser,
+    updateUserRole,
+    getStats
+} = require("../controllers/adminController");
+
+// All admin routes require authentication and admin role
+router.use(auth);
+router.use(isAdmin);
+
+// GET /admin/users
+router.get("/users", getAllUsers);
+
+// GET /admin/users/:id
+router.get("/users/:id", getUserById);
+
+// DELETE /admin/users/:id
+router.delete("/users/:id", deleteUser);
+
+// PATCH /admin/users/:id/role
+router.patch("/users/:id/role", updateUserRole);
+
+// GET /admin/stats
+router.get("/stats", getStats);
+
+module.exports = router;
+```
+
+### Product Router
+```javascript
+// routes/product.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+const {
+    getAllProducts,
+    getProductById,
+    createProduct,
+    updateProduct,
+    deleteProduct,
+    searchProducts
+} = require("../controllers/productController");
+
+// Public routes
+router.get("/", getAllProducts);
+router.get("/search", searchProducts);
+router.get("/:id", getProductById);
+
+// Protected routes (require authentication)
+router.post("/", auth, createProduct);
+router.patch("/:id", auth, updateProduct);
+router.delete("/:id", auth, deleteProduct);
+
+module.exports = router;
+```
+
+### Main App File
+```javascript
+// app.js
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const connectDB = require("./config/database");
+
+// Import routers
+const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/user");
+const adminRoutes = require("./routes/admin");
+const productRoutes = require("./routes/product");
+
+const app = express();
+
+// Global middleware
+app.use(express.json());
+app.use(cookieParser());
+
+// Mount routers
+app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+app.use("/admin", adminRoutes);
+app.use("/products", productRoutes);
+
+// Health check route
+app.get("/health", (req, res) => {
+    res.json({ status: "OK", timestamp: new Date() });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: "Route not found" });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: "Something went wrong!" });
+});
+
+module.exports = app;
+```
+
+### Server File
+```javascript
+// server.js
+const app = require("./app");
+const connectDB = require("./config/database");
+
+const PORT = process.env.PORT || 8888;
+
+connectDB()
+    .then(() => {
+        console.log("Database connected successfully!");
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error("Database connection error:", err);
+        process.exit(1);
+    });
+```
+
+### Sample Controller
+```javascript
+// controllers/authController.js
+const User = require("../models/user");
+const validator = require("validator");
+
+exports.signup = async (req, res) => {
+    try {
+        const { firstName, lastName, emailId, password } = req.body;
+        
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid email!");
+        }
+        
+        const user = new User({
+            firstName,
+            lastName,
+            emailId,
+            password
+        });
+        
+        await user.save();
+        
+        const token = user.getJWT();
+        res.cookie("token", token, { httpOnly: true });
+        
+        res.status(201).json({
+            message: "User created successfully!",
+            user: user.getPublicProfile()
+        });
+        
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+exports.login = async (req, res) => {
+    try {
+        const { emailId, password } = req.body;
+        
+        if (!validator.isEmail(emailId)) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        const user = await User.findOne({ emailId });
+        
+        if (!user) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        const isPasswordValid = await user.validatePassword(password);
+        
+        if (!isPasswordValid) {
+            throw new Error("Invalid credentials!");
+        }
+        
+        const token = user.getJWT();
+        res.cookie("token", token, { httpOnly: true });
+        
+        res.json({
+            message: "Login successful!",
+            user: user.getPublicProfile()
+        });
+        
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+exports.logout = (req, res) => {
+    res.cookie("token", null, { expires: new Date(Date.now()) });
+    res.json({ message: "Logout successful!" });
+};
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Router-Level Middleware</strong></summary>
+
+### Apply Middleware to All Routes in Router
+```javascript
+// routes/user.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+
+// This middleware applies to ALL routes in this router
+router.use(auth);
+
+// All these routes are now protected
+router.get("/profile", getProfile);
+router.patch("/profile", updateProfile);
+router.delete("/account", deleteAccount);
+
+module.exports = router;
+```
+
+### Apply Middleware to Specific Routes
+```javascript
+// routes/product.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+
+// Public routes (no auth required)
+router.get("/", getAllProducts);
+router.get("/:id", getProductById);
+
+// Protected routes (auth required)
+router.post("/", auth, createProduct);
+router.patch("/:id", auth, updateProduct);
+router.delete("/:id", auth, deleteProduct);
+
+module.exports = router;
+```
+
+### Multiple Middleware
+```javascript
+// routes/admin.js
+const express = require("express");
+const router = express.Router();
+const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/isAdmin");
+const rateLimit = require("../middleware/rateLimit");
+
+// Apply multiple middleware
+router.use(auth);           // First: Check authentication
+router.use(isAdmin);        // Second: Check admin role
+router.use(rateLimit);      // Third: Rate limiting
+
+router.get("/users", getAllUsers);
+router.delete("/users/:id", deleteUser);
+
+module.exports = router;
+```
+
+### Conditional Middleware
+```javascript
+// routes/product.js
+const router = express.Router();
+
+// Different middleware for different methods
+router.route("/:id")
+    .get(getProduct)                    // Public
+    .patch(auth, updateProduct)         // Requires auth
+    .delete(auth, isAdmin, deleteProduct); // Requires auth + admin
+
+module.exports = router;
+```
+
+### Logging Middleware for Router
+```javascript
+// routes/admin.js
+const router = express.Router();
+
+// Custom logging for this router only
+router.use((req, res, next) => {
+    console.log(`Admin Route: ${req.method} ${req.path}`);
+    next();
+});
+
+router.get("/users", getAllUsers);
+router.get("/stats", getStats);
+
+module.exports = router;
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Route Parameters and Query Strings</strong></summary>
+
+### Route Parameters
+```javascript
+// routes/user.js
+const router = express.Router();
+
+// GET /user/:id
+router.get("/:id", (req, res) => {
+    const userId = req.params.id;
+    res.json({ userId });
+});
+
+// GET /user/:id/posts/:postId
+router.get("/:id/posts/:postId", (req, res) => {
+    const { id, postId } = req.params;
+    res.json({ userId: id, postId });
+});
+
+module.exports = router;
+```
+
+### Query Strings
+```javascript
+// routes/product.js
+const router = express.Router();
+
+// GET /products?category=electronics&sort=price&limit=10
+router.get("/", (req, res) => {
+    const { category, sort, limit } = req.query;
+    res.json({ category, sort, limit });
+});
+
+module.exports = router;
+```
+
+### Combining Parameters and Query
+```javascript
+// routes/user.js
+// GET /user/123/posts?page=2&limit=10
+router.get("/:id/posts", (req, res) => {
+    const userId = req.params.id;
+    const { page, limit } = req.query;
+    
+    res.json({
+        userId,
+        page: page || 1,
+        limit: limit || 10
+    });
+});
+```
+
+### Route Chaining
+```javascript
+// routes/product.js
+router.route("/:id")
+    .get((req, res) => {
+        res.send(`Get product ${req.params.id}`);
+    })
+    .patch((req, res) => {
+        res.send(`Update product ${req.params.id}`);
+    })
+    .delete((req, res) => {
+        res.send(`Delete product ${req.params.id}`);
+    });
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Best Practices</strong></summary>
+
+### 1. Group Related Routes Together
+```javascript
+// ✅ Good - Related routes in same file
+// routes/auth.js
+router.post("/signup", signup);
+router.post("/login", login);
+router.post("/logout", logout);
+
+// ❌ Bad - Scattered across multiple files
+```
+
+### 2. Use Consistent Naming
+```javascript
+// ✅ Good - Consistent naming
+routes/
+  ├── auth.js         → /auth/*
+  ├── user.js         → /user/*
+  ├── product.js      → /products/*
+  └── admin.js        → /admin/*
+
+// ❌ Bad - Inconsistent naming
+routes/
+  ├── authentication.js
+  ├── userRoutes.js
+  ├── prod.js
+```
+
+### 3. Apply Middleware at Router Level
+```javascript
+// ✅ Good - DRY principle
+router.use(auth);
+router.get("/profile", getProfile);
+router.patch("/profile", updateProfile);
+
+// ❌ Bad - Repetitive
+router.get("/profile", auth, getProfile);
+router.patch("/profile", auth, updateProfile);
+```
+
+### 4. Use Controllers for Business Logic
+```javascript
+// ✅ Good - Separate concerns
+// routes/user.js
+router.get("/profile", userController.getProfile);
+
+// controllers/userController.js
+exports.getProfile = async (req, res) => {
+    // Business logic here
+};
+
+// ❌ Bad - Logic in routes
+router.get("/profile", async (req, res) => {
+    // 50 lines of business logic
+});
+```
+
+### 5. Version Your API
+```javascript
+// app.js
+const v1Routes = require("./routes/v1");
+const v2Routes = require("./routes/v2");
+
+app.use("/api/v1", v1Routes);
+app.use("/api/v2", v2Routes);
+```
+
+### 6. Add Route Documentation
+```javascript
+// routes/user.js
+/**
+ * @route   GET /user/profile
+ * @desc    Get user profile
+ * @access  Private
+ */
+router.get("/profile", auth, getProfile);
+
+/**
+ * @route   PATCH /user/profile
+ * @desc    Update user profile
+ * @access  Private
+ */
+router.patch("/profile", auth, updateProfile);
+```
+
+### 7. Handle 404 Routes
+```javascript
+// app.js
+app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+
+// 404 handler at the end
+app.use((req, res) => {
+    res.status(404).json({
+        error: "Route not found",
+        path: req.path
+    });
+});
+```
+
+### 8. Use Route Prefixes
+```javascript
+// ✅ Good - Clear prefixes
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/admin", adminRoutes);
+
+// URLs: /api/auth/login, /api/user/profile, etc.
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Common Mistakes</strong></summary>
+
+### Mistake 1: Not Exporting Router
+```javascript
+// ❌ Wrong - forgot to export
+const router = express.Router();
+router.get("/profile", getProfile);
+// Missing: module.exports = router;
+
+// ✅ Correct
+module.exports = router;
+```
+
+### Mistake 2: Creating New Router in Main File
+```javascript
+// ❌ Wrong
+const router = express.Router();  // Don't create here
+const authRoutes = require("./routes/auth");
+
+// ✅ Correct - Just import and use
+const authRoutes = require("./routes/auth");
+app.use("/auth", authRoutes);
+```
+
+### Mistake 3: Duplicate Route Paths
+```javascript
+// ❌ Wrong - duplicate paths
+router.get("/profile", getProfile);
+router.get("/profile", getSettings);  // Second one wins!
+
+// ✅ Correct - unique paths
+router.get("/profile", getProfile);
+router.get("/settings", getSettings);
+```
+
+### Mistake 4: Wrong Order of Middleware
+```javascript
+// ❌ Wrong - middleware after routes
+router.get("/profile", getProfile);
+router.use(auth);  // Too late! Doesn't affect above route
+
+// ✅ Correct - middleware before routes
+router.use(auth);
+router.get("/profile", getProfile);
+```
+
+### Mistake 5: Incorrect Path Mounting
+```javascript
+// routes/user.js
+router.get("/user/profile", getProfile);  // ❌ Wrong
+
+// app.js
+app.use("/user", userRoutes);
+
+// Result: /user/user/profile (duplicate!)
+
+// ✅ Correct
+// routes/user.js
+router.get("/profile", getProfile);
+
+// app.js
+app.use("/user", userRoutes);
+
+// Result: /user/profile ✓
+```
+
+### Mistake 6: Not Handling Async Errors
+```javascript
+// ❌ Wrong - unhandled promise rejection
+router.get("/profile", async (req, res) => {
+    const user = await User.findById(req.user.id);
+    res.json(user);  // If error occurs, server crashes
+});
+
+// ✅ Correct - use try-catch
+router.get("/profile", async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+```
+
+</details>
+
+---
+
+## Quick Reference
+
+### Create Router
+```javascript
+const express = require("express");
+const router = express.Router();
+
+router.get("/path", handler);
+router.post("/path", handler);
+
+module.exports = router;
+```
+
+### Mount Router
+```javascript
+const authRoutes = require("./routes/auth");
+app.use("/auth", authRoutes);
+```
+
+### Apply Middleware
+```javascript
+// All routes
+router.use(auth);
+
+// Specific routes
+router.get("/public", handler);
+router.get("/protected", auth, handler);
+```
+
+### Route Chaining
+```javascript
+router.route("/:id")
+    .get(getHandler)
+    .patch(updateHandler)
+    .delete(deleteHandler);
+```
+
+</details>
