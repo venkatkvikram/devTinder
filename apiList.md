@@ -19,7 +19,7 @@ connectionRequestRouter
 - POST /request/review/rejected/:requestId
 
 userRouter
-- GET /connections
+- GET /user/requests/received
 - GET /requests/received
 - GET /feed 
 

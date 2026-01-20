@@ -77,3 +77,11 @@
 - Why do we need index in DB
 - Advantages and Disadvantages of creating index
 - ALWAYS THINK ABOUT CORNER CASES
+
+
+- Write code with proper validations
+- Thought process GET vs POST
+- POST (save the data, only after all validations)
+- GET (only send secured data)
+- Read about Ref and Populate Query (https://mongoosejs.com/docs/populate.html)
+- Create GET /user/requests/received with all the checks 
