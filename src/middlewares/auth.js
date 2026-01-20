@@ -27,11 +27,11 @@ const userAuth = async (req, res, next) => {
             throw new Error("User Not Found!")
         }
         req.user = user;
+        console.log("0. Auth middleware passed, calling next()");
         next(); //go to next handler
     } catch (err) {
         res.status(400).send("Error: " + err.message)
     }
-    //find the user
 }
 
 module.exports = { adminAuth, userAuth };

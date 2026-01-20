@@ -22,22 +22,20 @@ const connectionRequestSchema = new mongoose.Schema({
     timestamps: true
 })
 
+//compound index - must be defined before model creation
+connectionRequestSchema.index({senderId: 1, receiverId: 1});
 
-const ConnectionRequest= mongoose.model("ConnectionRequest", connectionRequestSchema)
-module.exports = ConnectionRequest;
-
-
-//ConnecitonRequest.find({senderId: 332432423432423423423})
-connectionRequestSchema.index({senderId: 1, receiverId: 1}); //compound index
-
-connectionRequestSchema.pre("save", function (req,res) {
+//pre save middleware - must be defined before model creation
+connectionRequestSchema.pre("save", async function () {
     const connectionRequest = this;
-    //check if sender user Id is same as receievr userId
+    //check if sender user Id is same as receiver userId
     if(connectionRequest.senderId.equals(connectionRequest.receiverId)){
         throw new Error("Cannot send connection to yourself");
     }
-    next();
 })
+
+const ConnectionRequest = mongoose.model("ConnectionRequest", connectionRequestSchema)
+module.exports = ConnectionRequest;
 
 //schema pre is kind of a middleware
 //it will be called before a connectionrequest is saved
