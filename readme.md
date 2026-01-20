@@ -5138,7 +5138,7 @@ router.route("/:id")
 
 <span>
 
-### Indexes and Compound Indexes in DB
+## Indexes and Compound Indexes in DB, schema.pre
 As the collecitons grow the query operations become expensive they become very slow as db has to deal with so much data
 
 For that we need indexes in our database
