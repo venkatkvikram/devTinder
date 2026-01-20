@@ -5135,3 +5135,1249 @@ router.route("/:id")
 ```
 
 </details>
+
+<span>
+
+### Indexes and Compound Indexes in DB
+As the collecitons grow the query operations become expensive they become very slow as db has to deal with so much data
+
+For that we need indexes in our database
+Role of index: 
+
+Lets say we have 1 million users and in that we have 100 people with the name Virat
+it will become tough to findout since db has to go through every record and search for the name
+But if you keep index on the data base for the firstname, the db will optimize itself like that and 
+the query becomes very fast
+
+if we keep firstName as the index, then whenever I query something with firstname, then the query 
+will be very fast otherwise the query would be very slow
+
+If you define a field in schema with unique: true then mongodb automatically creates index for that 
+</span>
+
+
+Compound Indexes 
+
+Creating index unnecessarily also comes with a cost
+
+
+<details>
+<summary><strong>📊 MongoDB Indexes and Query Optimization</strong></summary>
+
+<details>
+<summary><strong>Table of Contents</strong></summary>
+
+- [What are Indexes?](#what-are-indexes)
+- [Why Use Indexes?](#why-use-indexes)
+- [How Indexes Work](#how-indexes-work)
+- [Types of Indexes](#types-of-indexes)
+- [Creating Indexes in Mongoose](#creating-indexes-in-mongoose)
+- [Compound Indexes](#compound-indexes)
+- [Schema Pre-Save Middleware](#schema-pre-save-middleware)
+- [Complete Implementation](#complete-implementation)
+- [Index Best Practices](#index-best-practices)
+- [Common Mistakes](#common-mistakes)
+- [Performance Considerations](#performance-considerations)
+
+</details>
+
+---
+
+<details>
+<summary><strong>What are Indexes?</strong></summary>
+
+**Indexes** are special data structures that MongoDB uses to quickly locate data without scanning every document in a collection.
+
+### Analogy: Book Index vs Reading Every Page
+
+#### Without Index (Full Collection Scan) ❌
+```
+Finding "Virat" in 1 million users:
+┌─────────────────────────────────────┐
+│ User 1: firstName: "John"           │ ← Check
+│ User 2: firstName: "Sarah"          │ ← Check
+│ User 3: firstName: "Mike"           │ ← Check
+│ ...                                 │
+│ User 999,998: firstName: "Emma"     │ ← Check
+│ User 999,999: firstName: "Virat"    │ ← Found! (after checking 999,999 records)
+│ User 1,000,000: firstName: "Alex"   │ ← Check
+└─────────────────────────────────────┘
+Time: Very Slow (scans all 1 million documents)
+```
+
+#### With Index (Optimized Lookup) ✅
+```
+Finding "Virat" with firstName index:
+┌──────────────────────┐
+│ Index Structure      │
+│ A → [Users 1-5000]   │
+│ B → [Users 5001-...]  │
+│ ...                  │
+│ V → [Users with V]   │ ← Direct lookup
+│   └─ Virat: [100]    │ ← Found instantly
+└──────────────────────┘
+Time: Very Fast (direct lookup to 100 matching documents)
+```
+
+### Key Concepts
+
+- **Without Index**: Database scans every document (slow)
+- **With Index**: Database uses optimized data structure (fast)
+- **Trade-off**: Faster reads, but slightly slower writes (index must be updated)
+
+</details>
+
+---
+
+<details>
+<summary><strong>Why Use Indexes?</strong></summary>
+
+### Problem: Slow Queries on Large Collections
+```javascript
+// Collection with 1 million users
+// Query without index
+const users = await User.find({ firstName: "Virat" });
+
+// MongoDB scans ALL 1 million documents
+// Time: 5-10 seconds (very slow!)
+```
+
+### Solution: Create Index
+```javascript
+// Create index on firstName
+userSchema.index({ firstName: 1 });
+
+// Same query with index
+const users = await User.find({ firstName: "Virat" });
+
+// MongoDB uses index to find matching documents
+// Time: 10-50 milliseconds (very fast!)
+```
+
+### Performance Comparison
+
+| Collection Size | Without Index | With Index |
+|----------------|---------------|------------|
+| 1,000 users | 10ms | 2ms |
+| 10,000 users | 100ms | 5ms |
+| 100,000 users | 1s | 10ms |
+| 1,000,000 users | 10s | 20ms |
+| 10,000,000 users | 100s+ | 50ms |
+
+### When to Use Indexes
+
+✅ **Use indexes when:**
+- Frequently querying by specific fields
+- Large collections (thousands+ documents)
+- Need fast search/filter operations
+- Sorting by specific fields
+- Unique constraints required
+
+❌ **Don't use indexes when:**
+- Small collections (< 1000 documents)
+- Fields rarely queried
+- Too many indexes (overhead on writes)
+- Frequently updated fields (index rebuilding cost)
+
+</details>
+
+---
+
+<details>
+<summary><strong>How Indexes Work</strong></summary>
+
+### Without Index: Full Collection Scan
+```javascript
+// Query: Find users named "Virat"
+User.find({ firstName: "Virat" })
+
+// MongoDB process:
+// 1. Start at first document
+// 2. Check firstName field
+// 3. If matches "Virat", add to results
+// 4. Move to next document
+// 5. Repeat for ALL documents
+// 6. Return results
+
+// Total documents scanned: 1,000,000
+// Time complexity: O(n)
+```
+
+### With Index: Optimized Lookup
+```javascript
+// Create index
+userSchema.index({ firstName: 1 });
+
+// Query: Find users named "Virat"
+User.find({ firstName: "Virat" })
+
+// MongoDB process:
+// 1. Look up "Virat" in firstName index
+// 2. Index returns document IDs with firstName="Virat"
+// 3. Fetch only those documents
+// 4. Return results
+
+// Total documents scanned: 100 (only matching ones)
+// Time complexity: O(log n)
+```
+
+### Index Data Structure (B-Tree)
+```
+                    [M-Z]
+                   /      \
+              [A-L]        [N-Z]
+             /    \          /    \
+        [A-F]  [G-L]    [N-S]  [T-Z]
+         /  \    /  \     /  \    /  \
+       [A] [D] [G] [J] [N] [P] [T] [V]
+                                    |
+                                 "Virat" → [Doc IDs: 123, 456, 789, ...]
+```
+
+### Automatic Indexes
+
+MongoDB automatically creates indexes for:
+
+1. **`_id` field** (always indexed, unique)
+2. **`unique: true` fields** (automatically indexed)
+```javascript
+const userSchema = new mongoose.Schema({
+    _id: mongoose.Schema.Types.ObjectId,  // Automatically indexed
+    emailId: {
+        type: String,
+        unique: true  // Automatically creates index
+    }
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Types of Indexes</strong></summary>
+
+### 1. Single Field Index
+
+Index on one field only.
+```javascript
+// Index on firstName (ascending)
+userSchema.index({ firstName: 1 });
+
+// Index on age (descending)
+userSchema.index({ age: -1 });
+
+// Usage
+User.find({ firstName: "Virat" });  // Uses firstName index
+User.find({ age: { $gte: 25 } });   // Uses age index
+```
+
+### 2. Compound Index
+
+Index on multiple fields together.
+```javascript
+// Compound index on firstName AND lastName
+userSchema.index({ firstName: 1, lastName: 1 });
+
+// Efficient queries:
+User.find({ firstName: "Venkata", lastName: "Esam" });  // Uses compound index
+User.find({ firstName: "Venkata" });  // Uses compound index (leftmost prefix)
+
+// Inefficient query:
+User.find({ lastName: "Esam" });  // Cannot use compound index efficiently
+```
+
+### 3. Unique Index
+
+Ensures field values are unique across collection.
+```javascript
+const userSchema = new mongoose.Schema({
+    emailId: {
+        type: String,
+        unique: true  // Creates unique index automatically
+    }
+});
+
+// Prevents duplicate emails
+// Trying to insert duplicate email throws error
+```
+
+### 4. Text Index
+
+For text search functionality.
+```javascript
+// Text index on bio field
+userSchema.index({ bio: "text" });
+
+// Text search
+User.find({ $text: { $search: "developer nodejs" } });
+```
+
+### 5. Geospatial Index
+
+For location-based queries.
+```javascript
+// Geospatial index
+userSchema.index({ location: "2dsphere" });
+
+// Find nearby users
+User.find({
+    location: {
+        $near: {
+            $geometry: { type: "Point", coordinates: [lng, lat] },
+            $maxDistance: 5000  // 5km radius
+        }
+    }
+});
+```
+
+### Index Direction
+```javascript
+// 1 = Ascending order
+userSchema.index({ age: 1 });
+
+// -1 = Descending order
+userSchema.index({ createdAt: -1 });
+
+// For compound indexes, direction matters for sorting
+userSchema.index({ age: 1, createdAt: -1 });
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Creating Indexes in Mongoose</strong></summary>
+
+### Method 1: Schema-Level Index (Recommended)
+```javascript
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema({
+    firstName: {
+        type: String,
+        required: true
+    },
+    lastName: {
+        type: String,
+        required: true
+    },
+    emailId: {
+        type: String,
+        required: true,
+        unique: true  // Automatically creates unique index
+    },
+    age: Number
+});
+
+// Create single field index
+userSchema.index({ firstName: 1 });
+
+// Create compound index
+userSchema.index({ firstName: 1, lastName: 1 });
+
+// Create index with options
+userSchema.index(
+    { emailId: 1 },
+    { unique: true, sparse: true }
+);
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
+```
+
+### Method 2: Field-Level Index
+```javascript
+const userSchema = new mongoose.Schema({
+    firstName: {
+        type: String,
+        index: true  // Creates index on this field
+    },
+    emailId: {
+        type: String,
+        unique: true  // Creates unique index
+    }
+});
+```
+
+### Method 3: Using Model
+```javascript
+// After model is created (not recommended for production)
+User.createIndexes();
+```
+
+### Index Options
+```javascript
+userSchema.index(
+    { firstName: 1, lastName: 1 },
+    {
+        name: "fullname_index",     // Custom index name
+        unique: true,               // Unique constraint
+        sparse: true,               // Only index documents with this field
+        background: true,           // Build index in background
+        expireAfterSeconds: 3600    // TTL index (auto-delete after 1 hour)
+    }
+);
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Compound Indexes</strong></summary>
+
+### What are Compound Indexes?
+
+**Compound indexes** are indexes on multiple fields. They optimize queries that filter or sort by multiple fields.
+
+### Why Use Compound Indexes?
+```javascript
+// Without compound index
+User.find({ firstName: "Venkata", lastName: "Esam" })
+// MongoDB scans all documents with firstName="Venkata"
+// Then filters by lastName="Esam"
+// Slow for large datasets
+
+// With compound index
+userSchema.index({ firstName: 1, lastName: 1 });
+User.find({ firstName: "Venkata", lastName: "Esam" })
+// MongoDB directly finds documents with BOTH conditions
+// Very fast!
+```
+
+### Creating Compound Indexes
+```javascript
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema({
+    firstName: String,
+    lastName: String,
+    age: Number,
+    city: String
+});
+
+// Compound index on firstName and lastName
+userSchema.index({ firstName: 1, lastName: 1 });
+
+// Compound index on city and age
+userSchema.index({ city: 1, age: 1 });
+
+const User = mongoose.model("User", userSchema);
+```
+
+### Leftmost Prefix Rule
+
+Compound index `{ firstName: 1, lastName: 1 }` can be used for:
+```javascript
+// ✅ Uses index efficiently
+User.find({ firstName: "Venkata" });
+User.find({ firstName: "Venkata", lastName: "Esam" });
+
+// ❌ Cannot use index efficiently
+User.find({ lastName: "Esam" });  // Skips firstName (leftmost)
+```
+
+### Example: Connection Request Schema
+```javascript
+const mongoose = require("mongoose");
+
+const connectionRequestSchema = new mongoose.Schema({
+    senderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
+    receiverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
+    status: {
+        type: String,
+        required: true,
+        enum: {
+            values: ["ignored", "interested", "accepted", "rejected"],
+            message: `{VALUE} is not supported`
+        }
+    }
+}, {
+    timestamps: true
+});
+
+// Compound index on senderId and receiverId
+connectionRequestSchema.index({ senderId: 1, receiverId: 1 });
+
+const ConnectionRequest = mongoose.model("ConnectionRequest", connectionRequestSchema);
+module.exports = ConnectionRequest;
+```
+
+### Query Performance with Compound Index
+```javascript
+// ✅ Very fast - uses compound index
+ConnectionRequest.find({
+    senderId: "507f1f77bcf86cd799439011",
+    receiverId: "507f1f77bcf86cd799439012"
+});
+
+// ✅ Fast - uses compound index (leftmost prefix)
+ConnectionRequest.find({
+    senderId: "507f1f77bcf86cd799439011"
+});
+
+// ⚠️ Slower - cannot use compound index efficiently
+ConnectionRequest.find({
+    receiverId: "507f1f77bcf86cd799439012"
+});
+```
+
+### Multiple Compound Indexes
+```javascript
+const userSchema = new mongoose.Schema({
+    firstName: String,
+    lastName: String,
+    age: Number,
+    city: String,
+    country: String
+});
+
+// Multiple compound indexes for different query patterns
+userSchema.index({ firstName: 1, lastName: 1 });     // For name searches
+userSchema.index({ city: 1, country: 1 });          // For location searches
+userSchema.index({ age: 1, city: 1 });              // For age+location searches
+
+const User = mongoose.model("User", userSchema);
+```
+
+### Compound Index Example: User Schema
+```javascript
+const userSchema = new mongoose.Schema({
+    firstName: String,
+    lastName: String,
+    emailId: {
+        type: String,
+        unique: true
+    },
+    age: Number,
+    city: String
+});
+
+// Compound index for full name searches
+userSchema.index({ firstName: 1, lastName: 1 });
+
+const User = mongoose.model("User", userSchema);
+
+// Efficient queries
+User.find({ firstName: "Venkata", lastName: "Esam" });  // Uses index
+User.find({ firstName: "Venkata" });  // Uses index (leftmost prefix)
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Schema Pre-Save Middleware</strong></summary>
+
+### What is Pre-Save Middleware?
+
+**Pre-save middleware** (also called pre-save hooks) runs before a document is saved to the database. It's useful for validation, data transformation, and business logic.
+
+### Basic Syntax
+```javascript
+schema.pre("save", function(next) {
+    // 'this' refers to the document being saved
+    // Perform validations or transformations
+    next();  // Call next() to continue saving
+});
+```
+
+### Example: Prevent Self-Connection
+```javascript
+const connectionRequestSchema = new mongoose.Schema({
+    senderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
+    receiverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ["ignored", "interested", "accepted", "rejected"]
+    }
+});
+
+// Pre-save middleware
+connectionRequestSchema.pre("save", function(next) {
+    const connectionRequest = this;
+    
+    // Check if sender and receiver are the same
+    if (connectionRequest.senderId.equals(connectionRequest.receiverId)) {
+        throw new Error("Cannot send connection to yourself");
+    }
+    
+    next();  // Continue with save
+});
+
+const ConnectionRequest = mongoose.model("ConnectionRequest", connectionRequestSchema);
+```
+
+### Usage
+```javascript
+// This will trigger pre-save middleware
+const request = new ConnectionRequest({
+    senderId: "507f1f77bcf86cd799439011",
+    receiverId: "507f1f77bcf86cd799439011",  // Same as sender
+    status: "interested"
+});
+
+await request.save();  // Error: "Cannot send connection to yourself"
+```
+
+### Common Use Cases
+
+#### 1. Data Validation
+```javascript
+userSchema.pre("save", function(next) {
+    const user = this;
+    
+    if (user.age < 18) {
+        throw new Error("User must be at least 18 years old");
+    }
+    
+    next();
+});
+```
+
+#### 2. Data Transformation
+```javascript
+userSchema.pre("save", function(next) {
+    const user = this;
+    
+    // Convert email to lowercase
+    if (user.emailId) {
+        user.emailId = user.emailId.toLowerCase();
+    }
+    
+    // Capitalize first name
+    if (user.firstName) {
+        user.firstName = user.firstName.charAt(0).toUpperCase() + 
+                        user.firstName.slice(1).toLowerCase();
+    }
+    
+    next();
+});
+```
+
+#### 3. Timestamp Management
+```javascript
+userSchema.pre("save", function(next) {
+    if (this.isNew) {
+        this.createdAt = new Date();
+    }
+    this.updatedAt = new Date();
+    next();
+});
+```
+
+#### 4. Password Hashing (Already Covered)
+```javascript
+userSchema.pre("save", async function(next) {
+    if (!this.isModified("password")) {
+        return next();
+    }
+    
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+});
+```
+
+### Multiple Pre-Save Hooks
+```javascript
+// First hook - validation
+userSchema.pre("save", function(next) {
+    if (this.age < 18) {
+        throw new Error("Must be 18+");
+    }
+    next();
+});
+
+// Second hook - transformation
+userSchema.pre("save", function(next) {
+    this.emailId = this.emailId.toLowerCase();
+    next();
+});
+
+// Hooks execute in order
+```
+
+### Async Pre-Save Middleware
+```javascript
+userSchema.pre("save", async function(next) {
+    try {
+        // Async operations
+        const exists = await User.findOne({ emailId: this.emailId });
+        
+        if (exists && !this._id.equals(exists._id)) {
+            throw new Error("Email already exists");
+        }
+        
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Complete Implementation</strong></summary>
+
+### Connection Request Model
+```javascript
+// models/connectionRequest.js
+const mongoose = require("mongoose");
+
+const connectionRequestSchema = new mongoose.Schema({
+    senderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",  // Reference to User model
+        required: true
+    },
+    receiverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
+    status: {
+        type: String,
+        required: true,
+        enum: {
+            values: ["ignored", "interested", "accepted", "rejected"],
+            message: `{VALUE} is not a valid status`
+        }
+    }
+}, {
+    timestamps: true  // Automatically adds createdAt and updatedAt
+});
+
+// Compound index for efficient queries
+connectionRequestSchema.index({ senderId: 1, receiverId: 1 });
+
+// Pre-save middleware - prevent self-connection
+connectionRequestSchema.pre("save", function(next) {
+    const connectionRequest = this;
+    
+    // Check if sender is trying to connect with themselves
+    if (connectionRequest.senderId.equals(connectionRequest.receiverId)) {
+        return next(new Error("Cannot send connection request to yourself"));
+    }
+    
+    next();
+});
+
+// Pre-save middleware - prevent duplicate requests
+connectionRequestSchema.pre("save", async function(next) {
+    try {
+        const connectionRequest = this;
+        
+        // Check if request already exists
+        const existingRequest = await ConnectionRequest.findOne({
+            $or: [
+                { senderId: connectionRequest.senderId, receiverId: connectionRequest.receiverId },
+                { senderId: connectionRequest.receiverId, receiverId: connectionRequest.senderId }
+            ]
+        });
+        
+        if (existingRequest) {
+            return next(new Error("Connection request already exists"));
+        }
+        
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+
+const ConnectionRequest = mongoose.model("ConnectionRequest", connectionRequestSchema);
+
+module.exports = ConnectionRequest;
+```
+
+### User Model with Indexes
+```javascript
+// models/user.js
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+
+const userSchema = new mongoose.Schema({
+    firstName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    lastName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    emailId: {
+        type: String,
+        required: true,
+        unique: true,  // Automatically creates unique index
+        lowercase: true,
+        trim: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    age: {
+        type: Number,
+        min: 18
+    },
+    city: String,
+    country: String
+}, {
+    timestamps: true
+});
+
+// Compound index for full name searches
+userSchema.index({ firstName: 1, lastName: 1 });
+
+// Compound index for location searches
+userSchema.index({ city: 1, country: 1 });
+
+// Pre-save middleware - hash password
+userSchema.pre("save", async function(next) {
+    if (!this.isModified("password")) {
+        return next();
+    }
+    
+    try {
+        this.password = await bcrypt.hash(this.password, 10);
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Schema methods
+userSchema.methods.validatePassword = async function(password) {
+    return await bcrypt.compare(password, this.password);
+};
+
+const User = mongoose.model("User", userSchema);
+
+module.exports = User;
+```
+
+### Using the Models
+```javascript
+// Send connection request
+app.post("/connection/send/:receiverId", auth, async (req, res) => {
+    try {
+        const senderId = req.user._id;
+        const receiverId = req.params.receiverId;
+        
+        // Create connection request
+        const connectionRequest = new ConnectionRequest({
+            senderId,
+            receiverId,
+            status: "interested"
+        });
+        
+        // Pre-save middleware will run here
+        await connectionRequest.save();
+        
+        res.status(201).json({
+            message: "Connection request sent!",
+            request: connectionRequest
+        });
+        
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Get all connection requests for a user
+app.get("/connection/requests", auth, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        
+        // Uses compound index for fast query
+        const requests = await ConnectionRequest.find({
+            receiverId: userId,
+            status: "interested"
+        }).populate("senderId", "firstName lastName");
+        
+        res.json(requests);
+        
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Search users by name
+app.get("/users/search", async (req, res) => {
+    try {
+        const { firstName, lastName } = req.query;
+        
+        // Uses compound index for fast search
+        const users = await User.find({
+            firstName: firstName,
+            lastName: lastName
+        }).select("firstName lastName emailId");
+        
+        res.json(users);
+        
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Index Best Practices</strong></summary>
+
+### 1. Index Frequently Queried Fields
+```javascript
+// ✅ Good - index fields used in queries
+userSchema.index({ emailId: 1 });  // Frequently queried
+userSchema.index({ firstName: 1, lastName: 1 });  // Common search
+
+// ❌ Bad - indexing rarely used fields
+userSchema.index({ middleName: 1 });  // Rarely queried
+```
+
+### 2. Use Compound Indexes for Multiple Field Queries
+```javascript
+// ✅ Good - single compound index
+userSchema.index({ city: 1, age: 1 });
+User.find({ city: "Hyderabad", age: 25 });
+
+// ❌ Bad - separate indexes (less efficient)
+userSchema.index({ city: 1 });
+userSchema.index({ age: 1 });
+```
+
+### 3. Don't Over-Index
+```javascript
+// ❌ Bad - too many indexes
+userSchema.index({ firstName: 1 });
+userSchema.index({ lastName: 1 });
+userSchema.index({ age: 1 });
+userSchema.index({ city: 1 });
+userSchema.index({ country: 1 });
+userSchema.index({ phone: 1 });
+// Slows down writes significantly
+
+// ✅ Good - strategic indexes
+userSchema.index({ emailId: 1 });  // unique, frequently queried
+userSchema.index({ firstName: 1, lastName: 1 });  // compound for names
+```
+
+### 4. Consider Query Patterns
+```javascript
+// Most common query pattern
+User.find({ city: "Hyderabad", age: { $gte: 25 } });
+
+// Create index matching query pattern
+userSchema.index({ city: 1, age: 1 });  // Perfect match
+```
+
+### 5. Index Order Matters for Compound Indexes
+```javascript
+// Query pattern: filter by city, sort by age
+User.find({ city: "Hyderabad" }).sort({ age: -1 });
+
+// ✅ Good - matches query pattern
+userSchema.index({ city: 1, age: -1 });
+
+// ❌ Less efficient
+userSchema.index({ age: -1, city: 1 });
+```
+
+### 6. Use Unique Indexes for Unique Fields
+```javascript
+// ✅ Good - prevents duplicates at database level
+userSchema.index({ emailId: 1 }, { unique: true });
+
+// ❌ Bad - only application-level validation
+const userSchema = new mongoose.Schema({
+    emailId: {
+        type: String,
+        validate: {
+            validator: async function(email) {
+                const user = await User.findOne({ emailId: email });
+                return !user;
+            }
+        }
+    }
+});
+```
+
+### 7. Monitor Index Usage
+```javascript
+// Check which indexes are being used
+User.collection.getIndexes().then(indexes => {
+    console.log(indexes);
+});
+
+// Explain query to see index usage
+User.find({ firstName: "Virat" }).explain("executionStats").then(result => {
+    console.log(result);
+});
+```
+
+### 8. Drop Unused Indexes
+```javascript
+// Drop specific index
+User.collection.dropIndex("firstName_1");
+
+// Drop all indexes except _id
+User.collection.dropIndexes();
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Common Mistakes</strong></summary>
+
+### Mistake 1: Not Using Indexes for Frequent Queries
+```javascript
+// ❌ Wrong - no index on frequently queried field
+const userSchema = new mongoose.Schema({
+    emailId: String  // No index
+});
+
+User.find({ emailId: "test@example.com" });  // Slow on large collections
+
+// ✅ Correct
+const userSchema = new mongoose.Schema({
+    emailId: {
+        type: String,
+        unique: true  // Creates index
+    }
+});
+```
+
+### Mistake 2: Creating Too Many Indexes
+```javascript
+// ❌ Wrong - over-indexing
+userSchema.index({ firstName: 1 });
+userSchema.index({ lastName: 1 });
+userSchema.index({ age: 1 });
+userSchema.index({ city: 1 });
+userSchema.index({ country: 1 });
+userSchema.index({ phone: 1 });
+userSchema.index({ address: 1 });
+// Every write operation updates 8 indexes!
+
+// ✅ Correct - only necessary indexes
+userSchema.index({ emailId: 1 }, { unique: true });
+userSchema.index({ firstName: 1, lastName: 1 });
+userSchema.index({ city: 1, country: 1 });
+```
+
+### Mistake 3: Wrong Compound Index Order
+```javascript
+// Common query: Find by receiverId
+ConnectionRequest.find({ receiverId: userId });
+
+// ❌ Wrong - receiverId is not leftmost
+connectionRequestSchema.index({ senderId: 1, receiverId: 1 });
+
+// ✅ Correct - add separate index or reorder
+connectionRequestSchema.index({ receiverId: 1, senderId: 1 });
+// OR
+connectionRequestSchema.index({ senderId: 1, receiverId: 1 });
+connectionRequestSchema.index({ receiverId: 1 });  // Separate index
+```
+
+### Mistake 4: Not Using `next()` in Pre-Save
+```javascript
+// ❌ Wrong - forgot to call next()
+userSchema.pre("save", function() {
+    this.emailId = this.emailId.toLowerCase();
+    // Missing next()! Save will hang
+});
+
+// ✅ Correct
+userSchema.pre("save", function(next) {
+    this.emailId = this.emailId.toLowerCase();
+    next();
+});
+```
+
+### Mistake 5: Using Arrow Functions in Pre-Save
+```javascript
+// ❌ Wrong - arrow function breaks 'this'
+userSchema.pre("save", () => {
+    this.emailId = this.emailId.toLowerCase();  // 'this' is undefined!
+    next();
+});
+
+// ✅ Correct - regular function
+userSchema.pre("save", function(next) {
+    this.emailId = this.emailId.toLowerCase();
+    next();
+});
+```
+
+### Mistake 6: Not Handling Async Errors in Pre-Save
+```javascript
+// ❌ Wrong - unhandled async errors
+userSchema.pre("save", async function(next) {
+    const exists = await User.findOne({ emailId: this.emailId });
+    if (exists) {
+        throw new Error("Email exists");  // Error not passed to next()
+    }
+});
+
+// ✅ Correct - pass errors to next()
+userSchema.pre("save", async function(next) {
+    try {
+        const exists = await User.findOne({ emailId: this.emailId });
+        if (exists) {
+            return next(new Error("Email exists"));
+        }
+        next();
+    } catch (error) {
+        next(error);
+    }
+});
+```
+
+</details>
+
+---
+
+<details>
+<summary><strong>Performance Considerations</strong></summary>
+
+### Index vs No Index Performance
+```javascript
+// Collection: 1 million users
+
+// WITHOUT INDEX
+console.time("No Index");
+await User.find({ firstName: "Virat" });
+console.timeEnd("No Index");
+// Output: No Index: 8547ms (8.5 seconds)
+
+// WITH INDEX
+userSchema.index({ firstName: 1 });
+
+console.time("With Index");
+await User.find({ firstName: "Virat" });
+console.timeEnd("With Index");
+// Output: With Index: 23ms (0.023 seconds)
+
+// 370x faster!
+```
+
+### Write Performance Impact
+```javascript
+// Without indexes: Fast writes
+await User.create({ firstName: "John", ... });  // 5ms
+
+// With 5 indexes: Slower writes (each index must be updated)
+await User.create({ firstName: "John", ... });  // 15ms
+
+// Trade-off: Slower writes for much faster reads
+```
+
+### Memory Usage
+```javascript
+// Indexes consume memory
+// Rule of thumb: ~10-15% of data size for indexes
+
+// Collection size: 1GB
+// Estimated index size: 100-150MB
+// Total memory: 1.1-1.15GB
+
+### When Indexes Don't Help
+```javascript
+// 1. Small collections (< 1000 documents)
+//    Full scan is fast enough
+
+// 2. Queries returning large percentage of documents
+User.find({ age: { $gte: 18 } });  // Returns 95% of documents
+// Index overhead not worth it
+
+// 3. Queries on non-indexed fields
+User.find({ middleName: "Kumar" });  // No index on middleName
+// Falls back to collection scan
+```
+
+### Optimizing Query Performance
+```javascript
+// Use .explain() to analyze queries
+User.find({ firstName: "Virat" })
+    .explain("executionStats")
+    .then(result => {
+        console.log("Execution time:", result.executionTimeMillis);
+        console.log("Documents examined:", result.executionStats.totalDocsExamined);
+        console.log("Index used:", result.executionStats.executionStages.indexName);
+    });
+```
+
+</details>
+
+---
+
+## Quick Reference
+
+### Create Single Index
+```javascript
+userSchema.index({ fieldName: 1 });  // 1 = ascending, -1 = descending
+```
+
+### Create Compound Index
+```javascript
+userSchema.index({ field1: 1, field2: 1 });
+```
+
+### Create Unique Index
+```javascript
+userSchema.index({ emailId: 1 }, { unique: true });
+// OR
+emailId: { type: String, unique: true }
+```
+
+### Pre-Save Middleware
+```javascript
+schema.pre("save", function(next) {
+    // Validation or transformation
+    next();
+});
+```
+
+### Prevent Self-Reference
+```javascript
+schema.pre("save", function(next) {
+    if (this.senderId.equals(this.receiverId)) {
+        return next(new Error("Cannot reference self"));
+    }
+    next();
+});
+```
+
+### Check Index Usage
+```javascript
+Model.collection.getIndexes();
+Model.find(query).explain("executionStats");
+```
+
+</details>
