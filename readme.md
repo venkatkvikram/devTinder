@@ -7663,3 +7663,462 @@ Model.find()
     .populate("field1")
     .populate("field2");
 ```
+</details>
+
+
+## User Feed API - README
+<details>
+## Overview
+This API endpoint provides a personalized feed of user profiles, implementing smart filtering logic to show only relevant users to the logged-in user.
+
+## Endpoint
+```
+GET /user/feed
+```
+
+**Authentication Required:** Yes (via `userAuth` middleware)
+
+## Functionality
+
+The `/feed` endpoint returns a list of user profiles that excludes:
+
+1. ❌ The logged-in user's own profile
+2. ❌ Existing connections
+3. ❌ Ignored users
+4. ❌ Users to whom connection requests have already been sent
+5. ❌ Users from whom connection requests have been received
+
+## MongoDB Query Operators Used
+
+### `$or`
+Finds documents that match **any** of the specified conditions.
+```javascript
+{ $or: [{ senderId: userId }, { receiverId: userId }] }
+```
+
+Retrieves all connection requests where the user is either the sender **or** receiver.
+
+### `$nin` (Not In)
+Excludes documents where the field value is **in** the specified array.
+```javascript
+{ _id: { $nin: Array.from(hideUsersFromFeed) } }
+```
+
+Filters out all user IDs that exist in the `hideUsersFromFeed` set.
+
+### `$ne` (Not Equal)
+Excludes documents where the field value **equals** the specified value.
+```javascript
+{ _id: { $ne: loggedInUser._id } }
+```
+
+Ensures the logged-in user's profile is not included in the feed.
+
+### `$and`
+Combines multiple conditions - **all** must be true for a match.
+```javascript
+{ $and: [
+    { _id: { $nin: Array.from(hideUsersFromFeed) } },
+    { _id: { $ne: loggedInUser._id } }
+]}
+```
+
+Both conditions must be satisfied for a user to appear in the feed.
+
+## Implementation Flow
+
+### Step 1: Fetch Connection Requests
+```javascript
+const myConnectionRequests = await ConnectionRequest.find({
+    $or: [
+        { senderId: loggedInUser._id }, 
+        { receiverId: loggedInUser._id }
+    ]
+}).select("senderId receiverId")
+```
+
+Retrieves all connection requests involving the logged-in user (both sent and received).
+
+### Step 2: Build Exclusion Set
+```javascript
+const hideUsersFromFeed = new Set();
+myConnectionRequests.forEach(req => {
+    hideUsersFromFeed.add(req.senderId.toString())
+    hideUsersFromFeed.add(req.receiverId.toString())
+})
+```
+
+Creates a Set of user IDs to exclude from the feed, ensuring no duplicates.
+
+### Step 3: Query Filtered Users
+```javascript
+const users = await User.find({
+    $and: [
+        { _id: { $nin: Array.from(hideUsersFromFeed) } },
+        { _id: { $ne: loggedInUser._id } }
+    ]
+}).select(USER_SAFE_DATA)
+```
+
+Fetches users who don't match any exclusion criteria, returning only safe public data.
+
+## Response
+
+### Success (200)
+```json
+[
+    {
+        "_id": "user_id",
+        "firstName": "John",
+        "lastName": "Doe"
+    }
+]
+```
+
+### Error (400)
+```json
+{
+    "message": "ERROR : <error_message>"
+}
+```
+
+## Security Considerations
+
+- Uses `USER_SAFE_DATA` projection to prevent sensitive information exposure
+- Requires authentication via middleware
+- Converts ObjectIds to strings for Set operations to ensure proper comparison
+
+## Performance Notes
+
+- Uses `.select()` to limit returned fields
+- Set data structure ensures O(1) lookup time for hiding users
+- Two separate database queries: one for connection requests, one for users
+
+## Usage Example
+```javascript
+// Request
+GET /user/feed
+Headers: {
+    Authorization: "Bearer <token>"
+}
+
+// The API will return all users except those already connected or pending
+```
+
+## Complete Implementation
+```javascript
+userRouter.get("/user/feed", userAuth, async (req, res) => {
+    try {
+        const loggedInUser = req.user;
+        
+        // Find all connectionRequests (sent + received)
+        const myConnectionRequests = await ConnectionRequest.find({
+            $or: [
+                { senderId: loggedInUser._id }, 
+                { receiverId: loggedInUser._id }
+            ]
+        }).select("senderId receiverId")
+        
+        // Build set of users to hide
+        const hideUsersFromFeed = new Set();
+        myConnectionRequests.forEach(req => {
+            hideUsersFromFeed.add(req.senderId.toString())
+            hideUsersFromFeed.add(req.receiverId.toString())
+        })
+        
+        // Query users with filters
+        const users = await User.find({
+            $and: [
+                { _id: { $nin: Array.from(hideUsersFromFeed) } },
+                { _id: { $ne: loggedInUser._id } }
+            ]
+        }).select(USER_SAFE_DATA)
+        
+        res.send(users)
+    } catch (error) {
+        res.status(400).json({
+            message: `ERROR : ${error.message}`
+        })
+    }
+})
+```
+</details>
+
+## User API pagination Implementation using .skip() and .limit from Mongoose conventions
+<details>
+# User Feed API with Pagination - README
+
+## Overview
+This API endpoint provides a personalized feed of user profiles with pagination support, implementing smart filtering logic to show only relevant users to the logged-in user.
+
+## Endpoint
+```
+GET /user/feed?page=<page_number>&limit=<items_per_page>
+```
+
+**Authentication Required:** Yes (via `userAuth` middleware)
+
+## Query Parameters
+
+| Parameter | Type | Default | Description | Validation |
+|-----------|------|---------|-------------|------------|
+| `page` | Integer | 1 | Page number to retrieve | Must be ≥ 1 |
+| `limit` | Integer | 10 | Number of users per page | Max 50, defaults to 10 if exceeded |
+
+### Example Requests
+```
+GET /user/feed?page=1&limit=10  // Returns users 1-10
+GET /user/feed?page=2&limit=10  // Returns users 11-20
+GET /user/feed?page=3&limit=10  // Returns users 21-30
+GET /user/feed                  // Returns first 10 users (defaults)
+```
+
+## Pagination Logic
+
+### Formula
+```javascript
+skip = (page - 1) × limit
+```
+
+### Examples
+
+| Page | Limit | Skip | Documents Returned |
+|------|-------|------|--------------------|
+| 1 | 10 | 0 | 1-10 |
+| 2 | 10 | 10 | 11-20 |
+| 3 | 10 | 20 | 21-30 |
+| 1 | 20 | 0 | 1-20 |
+| 5 | 15 | 60 | 61-75 |
+
+## MongoDB Pagination Methods
+
+### `.skip(n)`
+Skips the first `n` documents from the query results.
+```javascript
+.skip(10)  // Skip the first 10 documents
+```
+
+### `.limit(n)`
+Limits the result set to `n` documents.
+```javascript
+.limit(10)  // Return only 10 documents
+```
+
+### Combined Usage
+```javascript
+.skip(skip).limit(limit)
+// Example: .skip(20).limit(10) returns documents 21-30
+```
+
+## Functionality
+
+The `/feed` endpoint returns a paginated list of user profiles that excludes:
+
+1. ❌ The logged-in user's own profile
+2. ❌ Existing connections
+3. ❌ Ignored users
+4. ❌ Users to whom connection requests have already been sent
+5. ❌ Users from whom connection requests have been received
+
+## Implementation Flow
+
+### Step 1: Parse Pagination Parameters
+```javascript
+const page = parseInt(req.query.page) || 1;
+let limit = parseInt(req.query.limit);
+limit = limit > 50 ? 10 : limit;
+const skip = (page - 1) * limit;
+```
+
+**Validation Rules:**
+- `page` defaults to 1 if not provided or invalid
+- `limit` is capped at 50 to prevent excessive data retrieval
+- If `limit` exceeds 50, it resets to 10
+
+### Step 2: Fetch Connection Requests
+```javascript
+const myConnectionRequests = await ConnectionRequest.find({
+    $or: [
+        { senderId: loggedInUser._id }, 
+        { receiverId: loggedInUser._id }
+    ]
+}).select("senderId receiverId")
+```
+
+Retrieves all connection requests involving the logged-in user.
+
+### Step 3: Build Exclusion Set
+```javascript
+const hideUsersFromFeed = new Set();
+myConnectionRequests.forEach(req => {
+    hideUsersFromFeed.add(req.senderId.toString())
+    hideUsersFromFeed.add(req.receiverId.toString())
+})
+```
+
+Creates a Set of user IDs to exclude from the feed.
+
+### Step 4: Query Filtered Users with Pagination
+```javascript
+const users = await User.find({
+    $and: [
+        { _id: { $nin: Array.from(hideUsersFromFeed) } },
+        { _id: { $ne: loggedInUser._id } }
+    ]
+}).select(USER_SAFE_DATA).skip(skip).limit(limit)
+```
+
+Fetches users with filtering and pagination applied.
+
+## MongoDB Query Operators
+
+### `$or`
+Matches documents that satisfy **at least one** condition.
+
+### `$nin` (Not In)
+Excludes documents where the field value is in the specified array.
+
+### `$ne` (Not Equal)
+Excludes documents where the field value equals the specified value.
+
+### `$and`
+Matches documents that satisfy **all** conditions.
+
+## Response
+
+### Success (200)
+```json
+[
+    {
+        "_id": "user_id_1",
+        "firstName": "John",
+        "lastName": "Doe"
+    },
+    {
+        "_id": "user_id_2",
+        "firstName": "Jane",
+        "lastName": "Smith"
+    }
+]
+```
+
+**Note:** The response is an array of users, limited by the `limit` parameter.
+
+### Error (400)
+```json
+{
+    "message": "ERROR : <error_message>"
+}
+```
+
+## Complete Implementation
+```javascript
+userRouter.get("/user/feed", userAuth, async (req, res) => {
+    try {
+        const loggedInUser = req.user;
+        
+        // Parse and validate pagination parameters
+        const page = parseInt(req.query.page) || 1;
+        let limit = parseInt(req.query.limit);
+        limit = limit > 50 ? 10 : limit;
+        const skip = (page - 1) * limit;
+        
+        // Find all connection requests (sent + received)
+        const myConnectionRequests = await ConnectionRequest.find({
+            $or: [
+                { senderId: loggedInUser._id }, 
+                { receiverId: loggedInUser._id }
+            ]
+        }).select("senderId receiverId")
+        
+        // Build set of users to hide
+        const hideUsersFromFeed = new Set();
+        myConnectionRequests.forEach(req => {
+            hideUsersFromFeed.add(req.senderId.toString())
+            hideUsersFromFeed.add(req.receiverId.toString())
+        })
+        
+        // Query users with filters and pagination
+        const users = await User.find({
+            $and: [
+                { _id: { $nin: Array.from(hideUsersFromFeed) } },
+                { _id: { $ne: loggedInUser._id } }
+            ]
+        }).select(USER_SAFE_DATA).skip(skip).limit(limit)
+        
+        res.send(users)
+    } catch (error) {
+        res.status(400).json({
+            message: `ERROR : ${error.message}`
+        })
+    }
+})
+```
+
+## Performance Considerations
+
+### Optimization Tips
+
+1. **Index Creation:** Ensure proper indexes on `senderId` and `receiverId` in ConnectionRequest collection
+2. **Query Efficiency:** The two-step approach (fetch connections, then filter users) is efficient for moderate datasets
+3. **Limit Cap:** The 50-user limit prevents excessive data transfer and processing
+4. **Projection:** Using `.select(USER_SAFE_DATA)` reduces payload size
+
+### Potential Issues
+
+- **Large Skip Values:** Very large `skip` values (e.g., page 1000) can be slow. Consider cursor-based pagination for large datasets
+- **Connection Count:** Performance degrades if a user has thousands of connections
+
+## Usage Examples
+
+### Basic Pagination
+```javascript
+// Get first page (10 users)
+GET /user/feed?page=1&limit=10
+
+// Get second page
+GET /user/feed?page=2&limit=10
+
+// Get 20 users per page
+GET /user/feed?page=1&limit=20
+```
+
+### Edge Cases
+```javascript
+// Limit exceeds 50 → resets to 10
+GET /user/feed?page=1&limit=100  // Returns 10 users
+
+// Invalid page → defaults to 1
+GET /user/feed?page=abc&limit=10  // Returns page 1
+
+// No parameters → defaults: page=1, limit=10
+GET /user/feed
+```
+
+## Security Considerations
+
+- Uses `USER_SAFE_DATA` projection to prevent sensitive information exposure
+- Requires authentication via middleware
+- Limits maximum results per page to prevent abuse
+- Converts ObjectIds to strings for Set operations
+
+## Best Practices for Frontend Integration
+```javascript
+// Frontend pagination state
+const [page, setPage] = useState(1);
+const [users, setUsers] = useState([]);
+const limit = 10;
+
+// Fetch function
+const fetchFeed = async () => {
+    const response = await fetch(`/user/feed?page=${page}&limit=${limit}`, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await response.json();
+    setUsers(data);
+};
+
+// Load more functionality
+const loadMore = () => setPage(prev => prev + 1);
+```
+</details>
