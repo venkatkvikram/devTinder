@@ -45,7 +45,10 @@ authRouter.post("/login", async (req, res) => {
                 httpOnly: true,
             })
             //Add the token to cookie and send the response back to user
-            res.status(200).send("Login Successful!")
+            res.status(200).send({
+                message: "Login Success",
+                data: User
+            })
         } else {
             throw new Error("Invalid Credentials!")
         }
