@@ -40,7 +40,10 @@ authRouter.post("/login", async (req, res) => {
         const isPasswordValid = await user.validatePassword(password)
         if (isPasswordValid) {
             const token = await user.getJWT();
-            res.cookie("token", token)
+            res.cookie("token", token, {
+                expires: new Date(Date.now() + 8 * 3600000),
+                httpOnly: true,
+            })
             //Add the token to cookie and send the response back to user
             res.status(200).send("Login Successful!")
         } else {
@@ -53,8 +56,9 @@ authRouter.post("/login", async (req, res) => {
 
 
 authRouter.post("/logout", async (req, res) => {
-    res.cookie("token", null, { //remove token from cookie 
-        expires: new Date(Date.now()) //expire it instantly
+    res.cookie("token", null, {
+        expires: new Date(Date.now()),
+        sameSite: "lax"
     })
         .send("Logged out!")
 })
